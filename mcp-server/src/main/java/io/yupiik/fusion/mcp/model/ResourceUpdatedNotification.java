@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 /**
@@ -25,7 +26,9 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
  */
 @JsonModel
 public record ResourceUpdatedNotification(
+        @Property(documentation = "The resource which changed.")
         String uri,
+        @Property(documentation = "Human oriented name of the resource.")
         String title
 ) {
     public static ResourceUpdatedNotification of(final String uri) {

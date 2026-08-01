@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
@@ -31,12 +32,19 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
  */
 @JsonModel
 public record ResourceTemplate(
+        @Property(documentation = "Optional free form metadata.")
         @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "Optional hints for the client.")
         Annotations annotations,
+        @Property(documentation = "What the resources this template generates contain.")
         String description,
+        @Property(documentation = "Mime type of the generated resources, when constant.")
         String mimeType,
+        @Property(documentation = "Programmatic name of the template.")
         String name,
+        @Property(documentation = "Human oriented name of the template.")
         String title,
+        @Property(documentation = "A RFC 6570 uri template, file:///logs/{name}.log for example.")
         String uriTemplate
 ) {
     public static ResourceTemplate of(final String uriTemplate, final String name, final String mimeType, final String description) {

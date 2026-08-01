@@ -18,6 +18,10 @@ package io.yupiik.fusion.mcp.client;
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.mcp.protocol.MCPProtocol;
 
+import java.io.BufferedReader;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -26,10 +30,10 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.stream.Stream;
 
-import static java.net.http.HttpResponse.BodyHandlers.ofLines;
+import static java.net.http.HttpResponse.BodyHandlers.ofInputStream;
 import static java.net.http.HttpResponse.BodyHandlers.ofString;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * A minimal MCP client for the streamable HTTP transport: it drives a MCP server, which is what testing your own
@@ -61,7 +65,7 @@ public class MCPClient implements AutoCloseable {
     private final JsonMapper jsonMapper;
 
     private volatile String session;
-    private volatile HttpResponse<Stream<String>> sse;
+    private volatile BufferedReader sse;
 
     /**
      * @param endpoint the MCP endpoint, {@code http://localhost:8080/mcp} for example.
@@ -197,6 +201,8 @@ public class MCPClient implements AutoCloseable {
      * @return an iterator on the raw SSE lines.
      */
     public CompletionStage<Iterator<String>> openSse(final String lastEventId) {
+        close(); // at most one stream at a time, else the abandoned one is written to until the socket breaks
+
         final var builder = HttpRequest.newBuilder(endpoint)
                 .GET()
                 .header("accept", "text/event-stream");
@@ -204,13 +210,17 @@ public class MCPClient implements AutoCloseable {
             builder.header(MCPProtocol.LAST_EVENT_ID_HEADER, lastEventId);
         }
         withSession(builder);
-        return http.sendAsync(builder.build(), ofLines())
+        // an input stream and not ofLines(): closing it cancels the exchange, which is what abandoning a stream
+        // requires - else the connection stays busy and the next request waits for it
+        return http.sendAsync(builder.build(), ofInputStream())
                 .thenApply(response -> {
                     if (response.statusCode() != 200) {
+                        quietClose(response.body());
                         throw new IllegalStateException("Can't open the SSE stream: HTTP " + response.statusCode());
                     }
-                    sse = response;
-                    return response.body().iterator();
+                    final var reader = new BufferedReader(new InputStreamReader(response.body(), UTF_8));
+                    sse = reader;
+                    return reader.lines().iterator();
                 });
     }
 
@@ -222,15 +232,24 @@ public class MCPClient implements AutoCloseable {
      * @return the JSON of the next server to client message, it completes when the server sends one.
      */
     public CompletionStage<String> nextMessage(final Iterator<String> lines) {
-        return CompletableFuture.supplyAsync(() -> {
-            while (lines.hasNext()) {
-                final var line = lines.next();
-                if (line.startsWith(DATA_PREFIX)) {
-                    return line.substring(DATA_PREFIX.length());
+        final var promise = new CompletableFuture<String>();
+        // a dedicated virtual thread and not the common pool: reading the stream blocks until the server sends
+        // something, which would starve a shared pool
+        Thread.ofVirtual().name("mcp-client-sse-reader").start(() -> {
+            try {
+                while (lines.hasNext()) {
+                    final var line = lines.next();
+                    if (line.startsWith(DATA_PREFIX)) {
+                        promise.complete(line.substring(DATA_PREFIX.length()));
+                        return;
+                    }
                 }
+                promise.completeExceptionally(new NoSuchElementException("The SSE stream ended before any message"));
+            } catch (final RuntimeException re) {
+                promise.completeExceptionally(re);
             }
-            throw new NoSuchElementException("The SSE stream ended before any message");
         });
+        return promise;
     }
 
     /**
@@ -246,8 +265,16 @@ public class MCPClient implements AutoCloseable {
     public void close() {
         final var current = sse;
         if (current != null) {
-            current.body().close();
             sse = null;
+            quietClose(current);
+        }
+    }
+
+    private void quietClose(final Closeable closeable) {
+        try {
+            closeable.close();
+        } catch (final IOException ioe) {
+            // the stream is being abandoned, there is nothing to recover
         }
     }
 

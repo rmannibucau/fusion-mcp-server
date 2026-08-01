@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 /**
@@ -27,9 +28,13 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
  */
 @JsonModel
 public record ProgressNotification(
+        @Property(documentation = "The token the peer sent in the originating request, a string or a number.")
         Object progressToken,
+        @Property(documentation = "How much of the work is done, it must increase on every notification.")
         Double progress,
+        @Property(documentation = "Total amount of work, when known.")
         Double total,
+        @Property(documentation = "Human oriented description of the current step.")
         String message
 ) {
 }

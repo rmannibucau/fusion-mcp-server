@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 import java.util.List;
@@ -24,7 +25,9 @@ import java.util.List;
  */
 @JsonModel
 public record ListResourceTemplatesResponse(
+        @Property(documentation = "The available parameterized resources.")
         List<ResourceTemplate> resourceTemplates,
+        @Property(documentation = "Cursor to pass to the next call, absent when everything was returned.")
         String nextCursor
 ) {
 }

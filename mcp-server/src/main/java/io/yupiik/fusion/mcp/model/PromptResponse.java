@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
@@ -27,13 +28,18 @@ import java.util.List;
  */
 @JsonModel
 public record PromptResponse(
+        @Property(documentation = "Optional free form metadata.")
         @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "What the expanded prompt is about.")
         String description,
+        @Property(documentation = "The messages the prompt expands to.")
         List<Message> messages
 ) {
     @JsonModel
     public record Message(
+            @Property(documentation = "Who the message comes from.")
             Role role,
+            @Property(documentation = "The message content.")
             Content content
     ) {}
 }

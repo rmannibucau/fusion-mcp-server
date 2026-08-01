@@ -227,8 +227,17 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <trimStackTrace>false</trimStackTrace>
+                    <environmentVariables>
+                        <LC_ALL>en_US.UTF-8</LC_ALL>
+                    </environmentVariables>
                     <systemPropertyVariables>
                         <java.util.logging.manager>io.yupiik.logging.jul.YupiikLogManager</java.util.logging.manager>
+                        <java.net.preferIPv4Stack>true</java.net.preferIPv4Stack>
+                        <fusion.launcher.useHook>false</fusion.launcher.useHook>
+                        <fusion.http-server.port>0</fusion.http-server.port>
+                        <!-- loopback binding keeps the tomcat acceptor unlock local (and instant on stop), tests are local only anyway -->
+                        <fusion.http-server.host>localhost</fusion.http-server.host>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

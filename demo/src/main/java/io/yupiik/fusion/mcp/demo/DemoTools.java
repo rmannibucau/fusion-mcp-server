@@ -16,6 +16,8 @@
 package io.yupiik.fusion.mcp.demo;
 
 import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
+import io.yupiik.fusion.framework.build.api.configuration.Property;
+import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.jsonrpc.JsonRpc;
 import io.yupiik.fusion.framework.build.api.jsonrpc.JsonRpcParam;
 import io.yupiik.fusion.http.server.api.Request;
@@ -25,6 +27,9 @@ import io.yupiik.fusion.mcp.api.MCPTool;
 import io.yupiik.fusion.mcp.demo.model.Demo;
 import io.yupiik.fusion.mcp.demo.model.DemoResponse;
 import io.yupiik.fusion.mcp.model.CreateSamplingMessageParameters;
+import io.yupiik.fusion.mcp.model.ElicitRequestParameters;
+import io.yupiik.fusion.mcp.model.JsonSchema;
+import io.yupiik.fusion.mcp.model.ListRootsResponse;
 import io.yupiik.fusion.mcp.model.LoggingLevel;
 import io.yupiik.fusion.mcp.model.PromptResponse;
 import io.yupiik.fusion.mcp.model.Role;
@@ -32,9 +37,11 @@ import io.yupiik.fusion.mcp.model.SamplingMessage;
 import io.yupiik.fusion.mcp.protocol.MCPSessions;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletionStage;
 
 import static io.yupiik.fusion.mcp.model.Content.text;
+import static java.util.stream.Collectors.joining;
 
 /**
  * A tour of what a MCP server built with Fusion looks like: tools, a prompt, a tool failure, a log record and a
@@ -90,6 +97,57 @@ public class DemoTools {
                 .thenApply(response -> new Demo(response.content() == null ? null : response.content().text()));
     }
 
+    /**
+     * Asks the client user for a structured input, which requires the client to have declared the
+     * {@code elicitation} capability.
+     */
+    @MCPTool
+    @JsonRpc(value = "demo/confirm", documentation = "Asks the user to confirm an action.")
+    public CompletionStage<Demo> confirm(@JsonRpcParam(required = true, documentation = "What has to be confirmed.") final String action,
+                                        final Request request) {
+        return sessions.of(request)
+                .elicit(new ElicitRequestParameters(
+                        "Really " + action + "?",
+                        JsonSchema.object(
+                                "Confirmation",
+                                Map.of("confirm", JsonSchema.bool("Confirm the action?")),
+                                List.of("confirm"))))
+                .thenApply(response -> new Demo(switch (response.action()) {
+                    case accept -> "confirmed: " + response.content().get("confirm");
+                    case decline -> "declined";
+                    case cancel -> "cancelled";
+                }));
+    }
+
+    /**
+     * Lists what the client gives access to, which requires the client to have declared the {@code roots} capability.
+     */
+    @MCPTool
+    @JsonRpc(value = "demo/roots", documentation = "Lists the workspace roots the client exposes.")
+    public CompletionStage<DemoResponse> roots(final Request request) {
+        return sessions.of(request)
+                .listRoots()
+                .thenApply(response -> new DemoResponse(response.roots() == null ?
+                        "" :
+                        response.roots().stream().map(ListRootsResponse.Root::uri).collect(joining(", "))));
+    }
+
+    /**
+     * Shows how a richer signature is translated: a nested model, a collection, a map, an enum and primitives all end
+     * up in the {@code inputSchema} the model reads.
+     */
+    @MCPTool
+    @JsonRpc(value = "demo/search", documentation = "Searches the demo catalog.")
+    public DemoResponse search(@JsonRpcParam(required = true, documentation = "The query.") final Query query,
+                               @JsonRpcParam(documentation = "Tags to filter on.") final List<String> tags,
+                               @JsonRpcParam(documentation = "Extra options.") final Map<String, String> options,
+                               @JsonRpcParam(documentation = "How many results at most.") final int limit,
+                               @JsonRpcParam(documentation = "Sort direction.") final Direction direction) {
+        return new DemoResponse(
+                query.text() + '/' + (tags == null ? 0 : tags.size()) + '/' +
+                        (options == null ? 0 : options.size()) + '/' + limit + '/' + direction);
+    }
+
     @MCPPrompt
     @JsonRpc(value = "demo/prompt", documentation = "Demo.")
     public PromptResponse demoPrompt(@JsonRpcParam(documentation = "The code to inject in the prompt.") final String code) {
@@ -99,5 +157,23 @@ public class DemoTools {
                 List.of(new PromptResponse.Message(
                         Role.user,
                         text("hello sir! your code is <" + code + '>'))));
+    }
+
+    /**
+     * A nested model parameter, to show it is inlined in the tool {@code inputSchema} - documentation included, so
+     * the model knows what each attribute of the payload means and not only its type.
+     */
+    @JsonModel
+    public record Query(
+            @Property(documentation = "The text to search for, mandatory.")
+            String text,
+
+            @Property(documentation = "Should approximate matches be returned too.")
+            boolean fuzzy) {
+    }
+
+    @JsonModel
+    public enum Direction {
+        asc, desc
     }
 }

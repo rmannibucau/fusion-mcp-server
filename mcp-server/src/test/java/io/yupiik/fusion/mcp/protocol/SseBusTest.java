@@ -29,13 +29,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SseBusTest {
     @Test
+    void everySubscriptionIsGreetedWithAComment() {
+        final var subscriber = new TestSubscriber(1);
+        final var bus = new SseBus();
+        bus.subscribe(subscriber);
+
+        // it commits the HTTP response so the client knows the stream is live before any message
+        assertEquals(List.of(": ping\n\n"), subscriber.received);
+    }
+
+    @Test
     void frameFormat() {
         final var subscriber = new TestSubscriber(1);
         final var bus = new SseBus();
         bus.subscribe(subscriber);
         bus.publish("{\"jsonrpc\":\"2.0\"}");
 
-        assertEquals(List.of("id: 1\nevent: message\ndata: {\"jsonrpc\":\"2.0\"}\n\n"), subscriber.received);
+        assertEquals(List.of("id: 1\nevent: message\ndata: {\"jsonrpc\":\"2.0\"}\n\n"), subscriber.messages());
     }
 
     @Test
@@ -49,10 +59,10 @@ class SseBusTest {
         final var subscriber = new TestSubscriber(1);
         bus.subscribe(subscriber);
 
-        assertEquals(2, subscriber.received.size());
+        assertEquals(2, subscriber.messages().size());
         assertTrue(bus.queued().isEmpty());
-        assertTrue(subscriber.received.get(0).contains("data: {\"a\":1}"));
-        assertTrue(subscriber.received.get(1).contains("data: {\"a\":2}"));
+        assertTrue(subscriber.messages().get(0).contains("data: {\"a\":1}"));
+        assertTrue(subscriber.messages().get(1).contains("data: {\"a\":2}"));
     }
 
     @Test
@@ -62,10 +72,13 @@ class SseBusTest {
         bus.subscribe(subscriber);
         bus.publish("{\"a\":1}");
 
-        assertTrue(subscriber.received.isEmpty());
+        assertTrue(subscriber.received.isEmpty(), "not even the greeting is written without demand");
 
         subscriber.subscription.request(1);
-        assertEquals(1, subscriber.received.size());
+        assertEquals(List.of(": ping\n\n"), subscriber.received, "one item of demand, one frame: the greeting");
+
+        subscriber.subscription.request(1);
+        assertEquals(1, subscriber.messages().size(), "the next one delivers the message");
     }
 
     @Test
@@ -75,7 +88,7 @@ class SseBusTest {
         bus.subscribe(subscriber);
         bus.keepAlive();
 
-        assertEquals(List.of(": ping\n\n"), subscriber.received);
+        assertEquals(List.of(": ping\n\n", ": ping\n\n"), subscriber.received, "the greeting plus the explicit one");
         assertEquals(0, bus.lastEventId(), "a keep-alive is not a message so it must not consume an event id");
     }
 
@@ -87,15 +100,68 @@ class SseBusTest {
         bus.publish("{\"a\":1}");
         bus.publish("{\"a\":2}");
         bus.publish("{\"a\":3}");
-        assertEquals(3, first.received.size());
+        assertEquals(3, first.messages().size());
 
+        // like the transport does: arm the replay, then let the HTTP layer subscribe
+        bus.replayFrom(1); // the client got the first event only
         final var reconnected = new TestSubscriber(1);
         bus.subscribe(reconnected);
-        bus.replayFrom(1); // the client got the first event only
 
-        assertEquals(2, reconnected.received.size());
-        assertTrue(reconnected.received.get(0).contains("data: {\"a\":2}"), reconnected.received.toString());
-        assertTrue(reconnected.received.get(1).contains("data: {\"a\":3}"), reconnected.received.toString());
+        assertEquals(2, reconnected.messages().size());
+        assertTrue(reconnected.messages().get(0).contains("data: {\"a\":2}"), reconnected.messages().toString());
+        assertTrue(reconnected.messages().get(1).contains("data: {\"a\":3}"), reconnected.messages().toString());
+    }
+
+    @Test
+    void subscribingAgainSupersedesThePreviousStream() {
+        final var first = new TestSubscriber(1);
+        final var bus = new SseBus();
+        bus.subscribe(first);
+
+        final var second = new TestSubscriber(1);
+        bus.subscribe(second);
+
+        assertTrue(first.completed, "at most one stream per session, the previous one is completed");
+        assertFalse(second.completed);
+
+        bus.publish("{\"a\":1}");
+        assertTrue(first.messages().isEmpty(), "nothing is delivered to the superseded stream");
+        assertEquals(1, second.messages().size());
+    }
+
+    @Test
+    void replayBufferIsBounded() {
+        final var subscriber = new TestSubscriber(1);
+        final var bus = new SseBus();
+        bus.subscribe(subscriber);
+        for (int i = 1; i <= 130; i++) {
+            bus.publish("{\"a\":" + i + "}");
+        }
+        assertEquals(130, subscriber.messages().size());
+        assertEquals(130, bus.lastEventId(), "every message consumes an event id");
+
+        bus.replayFrom(0); // ask for everything, only the last 128 are kept
+        final var reconnected = new TestSubscriber(1);
+        bus.subscribe(reconnected);
+
+        assertEquals(128, reconnected.messages().size());
+        assertTrue(reconnected.messages().get(0).contains("data: {\"a\":3}"), reconnected.messages().get(0));
+    }
+
+    @Test
+    void keepAliveIsNotReplayed() {
+        final var subscriber = new TestSubscriber(1);
+        final var bus = new SseBus();
+        bus.subscribe(subscriber);
+        bus.publish("{\"a\":1}");
+        bus.keepAlive();
+
+        bus.replayFrom(0);
+        final var reconnected = new TestSubscriber(1);
+        bus.subscribe(reconnected);
+
+        assertEquals(1, reconnected.messages().size(), "a comment is not a message, it is not replayed");
+        assertTrue(reconnected.messages().get(0).contains("data: {\"a\":1}"));
     }
 
     @Test
@@ -134,6 +200,13 @@ class SseBusTest {
 
         private TestSubscriber(final long request) {
             this.request = request;
+        }
+
+        /**
+         * @return the received frames without the comments - the greeting and the keep-alives.
+         */
+        private List<String> messages() {
+            return received.stream().filter(it -> !it.startsWith(":")).toList();
         }
 
         @Override

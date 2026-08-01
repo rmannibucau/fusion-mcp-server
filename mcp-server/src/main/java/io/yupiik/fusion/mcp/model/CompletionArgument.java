@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 /**
@@ -22,6 +23,10 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
  */
 @JsonModel
 public record CompletionArgument(
-        String name, String value
+        @Property(documentation = "Name of the argument being completed.")
+        String name,
+
+        @Property(documentation = "What the user typed so far, possibly empty.")
+        String value
 ) {
 }

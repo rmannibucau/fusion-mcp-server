@@ -112,6 +112,30 @@
                                 </urls>
                             </configuration>
                         </preAction>
+                        <preAction>
+                            <!-- the MCP protocol methods, straight from the OpenRPC document of this library -->
+                            <type>io.yupiik.fusion.documentation.OpenRPC2Adoc</type>
+                            <configuration>
+                                <input>
+                                    ${project.basedir}/../mcp-server/target/classes/META-INF/fusion/jsonrpc/openrpc.json
+                                </input>
+                                <output>
+                                    ${project.basedir}/src/main/minisite/content/_partials/generated/openrpc.mcp.adoc
+                                </output>
+                            </configuration>
+                        </preAction>
+                        <preAction>
+                            <!-- and the methods the demo module exposes, so the demo page cannot drift either -->
+                            <type>io.yupiik.fusion.documentation.OpenRPC2Adoc</type>
+                            <configuration>
+                                <input>
+                                    ${project.basedir}/../demo/target/classes/META-INF/fusion/jsonrpc/openrpc.json
+                                </input>
+                                <output>
+                                    ${project.basedir}/src/main/minisite/content/_partials/generated/openrpc.demo.adoc
+                                </output>
+                            </configuration>
+                        </preAction>
                     </preActions>
                 </configuration>
                 <dependencies>

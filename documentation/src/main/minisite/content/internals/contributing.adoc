@@ -48,12 +48,20 @@ JUnit 5 with `fusion-testing`, one concern per class:
 |===
 | Test | Scope
 | `MCPJSONRPCProtocolTest` | the MCP methods with no application tool, so the minimal capabilities.
-| `MCPTransportTest` | sessions, headers, `DELETE`, SSE, stateless clients.
-| `SseBusTest` | the event stream: framing, backpressure, replay, keep-alive.
-| `MCPClientTest` | the shipped test client itself.
-| `DemoTest` | a real server end to end, including a full sampling round trip.
+| `MCPTransportTest` | sessions, headers, batches, `DELETE`, SSE, replay, stateless clients.
+| `MCPStrictSessionTest` | the same transport with `fusion.mcp.requireSession=true`.
+| `SseBusTest` | the event stream: framing, backpressure, greeting, replay window, keep-alive.
+| `MCPSessionTest` | one session in isolation: logging filter, server requests, correlation, timeouts, expiration.
+| `MCPSessionsTest` | the registry: creation, lookup, eviction, how a call is bound to its session.
+| `OpenRpcServiceTest` | `$ref` inlining, including the recursive models which must not loop.
+| `ModelTest` | the wire format of the model - a rename must break here, a client parses it.
+| `MCPClientTest` | the shipped client itself.
+| `DemoTest` | a real server end to end, including the sampling, elicitation and roots round trips.
 | `DescriptorsTest` | that only annotated methods are exposed and that all the OpenRPC documents are merged.
 |===
+
+A `StubRequest` test double covers what only needs headers and attributes, so the session level tests need no HTTP
+server.
 
 Prefer `assertJsonEquals` over string matching: the expected JSON reads like the wire, and a diff points at what a
 client would actually see. Use `MCPClient` rather than raw HTTP - see xref:testing.adoc[Testing].

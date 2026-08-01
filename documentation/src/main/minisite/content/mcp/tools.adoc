@@ -61,6 +61,30 @@ For the example above:
 
 NOTE: descriptors are computed once at startup, so `tools/list` costs nothing and never triggers user code.
 
+=== Documenting the payloads
+
+The parameter documentation stops at the parameter. To document the *attributes* of a model - a nested argument or the
+result - annotate its record components with `@Property`, which the Fusion processor puts in the generated schema:
+
+[source,java]
+----
+@JsonModel
+public record Query(
+        @Property(documentation = "The text to search for, mandatory.")
+        String text,
+
+        @Property(documentation = "Should approximate matches be returned too.")
+        boolean fuzzy) {
+}
+----
+
+The model then reads a description for every field of the payload it has to build - and of the result it gets back -
+instead of a bare type. It costs one annotation and, like everything else here, it cannot drift from the code.
+
+CAUTION: `@Property(required = true)` only appends a sentence to the description, it does not mark the schema property
+as required. Express mandatory arguments with `@JsonRpcParam(required = true)`, which is what ends up in the schema
+`required` list.
+
 == Results
 
 The returned value is sent twice, on purpose:

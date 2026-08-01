@@ -62,7 +62,7 @@ The repository provides three modules:
 
 * `mcp-server`: the MCP implementation on top of the Fusion JSON-RPC stack - streamable HTTP transport bound on
 `/mcp`, SSE channel, session handling and the MCP wire model,
-* `demo`: a sample MCP server exposing tools, a prompt, resources, completions and a sampling call,
+* `demo`: a sample MCP server exposing tools, a prompt, resources, completions and the three server to client requests (sampling, elicitation, roots),
 * `documentation`: the AsciiDoc minisite.
 
 === Design

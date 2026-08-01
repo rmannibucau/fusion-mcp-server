@@ -1,0 +1,1055 @@
+== Methods
+
+=== completion/complete
+
+Parameter structure: either.
+
+Suggests values for a prompt argument or a resource template variable.
+
+Parameters:
+* `argument` (object of type `io.yupiik.fusion.mcp.model.CompletionArgument`): The argument being completed and its current value.
+* `context` (object of type `io.yupiik.fusion.mcp.model.CompletionContext`): The arguments already resolved.
+* `ref` (object of type `io.yupiik.fusion.mcp.model.CompletionRef`): What is completed: a prompt or a resource template.
+
+
+
+=== initialize
+
+Parameter structure: either.
+
+Negotiates the protocol version and returns the server capabilities.
+
+Parameters:
+* `protocolVersion` (`string`): The protocol version the client wants to use.
+* `capabilities` (object of type `io.yupiik.fusion.mcp.model.Capabilities`): What the client supports: roots, sampling, elicitation.
+* `clientInfo` (object of type `io.yupiik.fusion.mcp.model.ClientInfo`): Which client is connecting.
+
+
+
+=== logging/setLevel
+
+Parameter structure: either.
+
+Sets the minimum severity of the log records sent to the client.
+
+Parameters:
+* `level` (`string`): A syslog level name: debug, info, notice, warning, error, critical, alert or emergency.
+
+
+
+=== notifications/cancelled
+
+Parameter structure: either.
+
+The client gave up on a request it sent.
+
+Parameters:
+* `reason` (`string`): Why the request was cancelled.
+* `requestId` (object): The cancelled request id, a string or a number.
+
+
+
+=== notifications/initialized
+
+Parameter structure: either.
+
+The client is ready, the session can be used.
+
+Parameters:
+* `_meta` (object of type `io.yupiik.fusion.mcp.model.Metadata`)
+
+
+
+=== notifications/progress
+
+Parameter structure: either.
+
+Progress of a request the client sent to the server.
+
+Parameters:
+* `message` (`string`)
+* `progress` (number)
+* `progressToken` (object)
+* `total` (number)
+
+
+
+=== notifications/roots/list_changed
+
+Parameter structure: either.
+
+The client filesystem roots changed.
+
+Parameters:
+* `_meta` (object of type `io.yupiik.fusion.mcp.model.Metadata`)
+
+
+
+=== ping
+
+Parameter structure: either.
+
+Liveness check, see https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/ping.
+
+Parameters:
+* `_meta` (object of type `io.yupiik.fusion.mcp.model.Metadata`)
+
+
+
+=== prompts/get
+
+Parameter structure: either.
+
+Expands a prompt template.
+
+Parameters:
+* `name` (`string`): The prompt name, as returned by prompts/list.
+* `arguments` (object): The prompt arguments, all strings.
+
+
+
+=== prompts/list
+
+Parameter structure: either.
+
+Lists the prompt templates the user can pick.
+
+Parameters:
+* `cursor` (`string`): Pagination cursor, unused: all the prompts are returned at once.
+
+
+
+=== resources/list
+
+Parameter structure: either.
+
+Lists the resources the client can read.
+
+Parameters:
+* `cursor` (`string`): Pagination cursor, unused: all the resources are returned at once.
+
+
+
+=== resources/read
+
+Parameter structure: either.
+
+Reads the contents of a resource.
+
+Parameters:
+* `uri` (`string`): The resource uri.
+
+
+
+=== resources/subscribe
+
+Parameter structure: either.
+
+Asks to be notified when a resource changes.
+
+Parameters:
+* `uri` (`string`): The resource uri to watch.
+
+
+
+=== resources/templates/list
+
+Parameter structure: either.
+
+Lists the parameterized resources the client can read.
+
+Parameters:
+* `cursor` (`string`): Pagination cursor, unused: all the templates are returned at once.
+
+
+
+=== resources/unsubscribe
+
+Parameter structure: either.
+
+Stops watching a resource.
+
+Parameters:
+* `uri` (`string`): The resource uri to stop watching.
+
+
+
+=== tools/call
+
+Parameter structure: either.
+
+Calls a tool.
+
+Parameters:
+* `name` (`string`): The tool name, as returned by tools/list.
+* `arguments` (object): The tool arguments, they must match its inputSchema.
+
+
+
+=== tools/list
+
+Parameter structure: either.
+
+Lists the tools the model can call.
+
+Parameters:
+* `cursor` (`string`): Pagination cursor, unused: all the tools are returned at once.
+
+
+
+== Schemas
+
+=== Annotations (io.yupiik.fusion.mcp.model.Annotations) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|audience
+|array with items of type `string`
+|false
+|Who the annotated object is intended for.
+
+|lastModified
+|`string`
+|true
+|When the annotated object was modified for the last time, ISO-8601.
+
+|priority
+|integer
+|true
+|How important the annotated object is, from 0 (least) to 1 (most).
+|===
+
+=== Capabilities (io.yupiik.fusion.mcp.model.Capabilities) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|elicitation
+|object
+|true
+|Set when the client can ask its user for a structured input.
+
+|experimental
+|object
+|true
+|Non standard capabilities, keyed by name.
+
+|roots
+|object of type `io.yupiik.fusion.mcp.model.Capabilities.Roots`
+|true
+|Set when the client exposes filesystem roots.
+
+|sampling
+|object
+|true
+|Set when the client can run a LLM completion for the server.
+|===
+
+=== Roots (io.yupiik.fusion.mcp.model.Capabilities.Roots) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|listChanged
+|`boolean`
+|false
+|Set when the client notifies the server the list changed.
+|===
+
+=== ClientInfo (io.yupiik.fusion.mcp.model.ClientInfo) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|name
+|`string`
+|true
+|Programmatic name of the client.
+
+|title
+|`string`
+|true
+|Human oriented name of the client.
+
+|version
+|`string`
+|true
+|Version of the client.
+|===
+
+=== CompleteResult (io.yupiik.fusion.mcp.model.CompleteResult) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|completion
+|object of type `io.yupiik.fusion.mcp.model.CompleteResult.Completion`
+|true
+|The suggestions for the argument being completed.
+|===
+
+=== Completion (io.yupiik.fusion.mcp.model.CompleteResult.Completion) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|hasMore
+|`boolean`
+|false
+|Set when more values exist than the ones returned.
+
+|total
+|integer
+|false
+|Total amount of matching values.
+
+|values
+|array with items of type `string`
+|false
+|The suggested values, at most 100.
+|===
+
+=== CompletionArgument (io.yupiik.fusion.mcp.model.CompletionArgument) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|name
+|`string`
+|true
+|Name of the argument being completed.
+
+|value
+|`string`
+|true
+|What the user typed so far, possibly empty.
+|===
+
+=== CompletionContext (io.yupiik.fusion.mcp.model.CompletionContext) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|arguments
+|object
+|true
+|The arguments already resolved, by name, to enable dependent completions.
+|===
+
+=== CompletionRef (io.yupiik.fusion.mcp.model.CompletionRef) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|name
+|`string`
+|true
+|Prompt name, when completing a prompt argument.
+
+|title
+|`string`
+|true
+|Human oriented name of the prompt.
+
+|type
+|`string`
+|true
+|Either ref/prompt or ref/resource.
+
+|uri
+|`string`
+|true
+|Resource template uri, when completing a template variable.
+|===
+
+=== Content (io.yupiik.fusion.mcp.model.Content) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|annotations
+|object of type `io.yupiik.fusion.mcp.model.Annotations`
+|true
+|Optional hints for the client.
+
+|data
+|`string`
+|true
+|The base64 encoded payload, for an image or audio block.
+
+|description
+|`string`
+|true
+|What the linked resource contains.
+
+|mimeType
+|`string`
+|true
+|Mime type of the payload.
+
+|name
+|`string`
+|true
+|Programmatic name of the linked resource.
+
+|resource
+|object of type `io.yupiik.fusion.mcp.model.ResourceContents`
+|true
+|The embedded resource contents, for a resource block.
+
+|size
+|integer
+|true
+|Size of the linked resource in bytes, when known.
+
+|text
+|`string`
+|true
+|The text, for a text block.
+
+|title
+|`string`
+|true
+|Human oriented name of the linked resource.
+
+|type
+|enum with potential values `text`, `image`, `audio`, `resource_link`, `resource`
+|true
+|Which kind of content this block carries.
+
+|uri
+|`string`
+|true
+|Uri of the linked resource, for a resource_link block.
+|===
+
+=== InitializeResponse (io.yupiik.fusion.mcp.model.InitializeResponse) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|capabilities
+|object of type `io.yupiik.fusion.mcp.model.InitializeResponse.Capabilities`
+|true
+|What this server can do.
+
+|instructions
+|`string`
+|true
+|How the model should use this server.
+
+|protocolVersion
+|`string`
+|true
+|The negotiated protocol version.
+
+|serverInfo
+|object of type `io.yupiik.fusion.mcp.model.InitializeResponse.ServerInfo`
+|true
+|Which server is answering.
+|===
+
+=== Capabilities (io.yupiik.fusion.mcp.model.InitializeResponse.Capabilities) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|completions
+|object
+|true
+|Set when the server can suggest argument values.
+
+|experimental
+|object
+|true
+|Non standard capabilities, keyed by name.
+
+|logging
+|object
+|true
+|Set when the server can send log records.
+
+|prompts
+|object of type `io.yupiik.fusion.mcp.model.InitializeResponse.Prompts`
+|true
+|Set when the server exposes prompts.
+
+|resources
+|object of type `io.yupiik.fusion.mcp.model.InitializeResponse.Resources`
+|true
+|Set when the server exposes resources.
+
+|tools
+|object of type `io.yupiik.fusion.mcp.model.InitializeResponse.Tools`
+|true
+|Set when the server exposes tools.
+|===
+
+=== Prompts (io.yupiik.fusion.mcp.model.InitializeResponse.Prompts) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|listChanged
+|`boolean`
+|false
+|Set when the server notifies the client the prompt list changed.
+|===
+
+=== Resources (io.yupiik.fusion.mcp.model.InitializeResponse.Resources) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|listChanged
+|`boolean`
+|false
+|Set when the server notifies the client the resource list changed.
+
+|subscribe
+|`boolean`
+|false
+|Set when the client can subscribe to the changes of a single resource.
+|===
+
+=== ServerInfo (io.yupiik.fusion.mcp.model.InitializeResponse.ServerInfo) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|name
+|`string`
+|true
+|Programmatic name of the server.
+
+|title
+|`string`
+|true
+|Human oriented name of the server.
+
+|version
+|`string`
+|true
+|Version of the server.
+|===
+
+=== Tools (io.yupiik.fusion.mcp.model.InitializeResponse.Tools) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|listChanged
+|`boolean`
+|false
+|Set when the server notifies the client the tool list changed.
+|===
+
+=== JsonSchema (io.yupiik.fusion.mcp.model.JsonSchema) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|additionalProperties
+|object
+|true
+|Either a boolean or the schema of the free form properties.
+
+|default
+|object
+|true
+|Value used when the property is absent.
+
+|description
+|`string`
+|true
+|What the described value means.
+
+|enum
+|array with items of type `string`
+|false
+|The closed set of allowed values.
+
+|enumNames
+|array with items of type `string`
+|false
+|Human oriented labels of the allowed values, same order.
+
+|format
+|`string`
+|true
+|Semantic format of a string, date-time for example.
+
+|items
+|object of type `io.yupiik.fusion.mcp.model.JsonSchema`
+|true
+|Schema of the items, for an array.
+
+|maxLength
+|integer
+|true
+|Maximum length of a string.
+
+|maximum
+|integer
+|true
+|Maximum value of a number.
+
+|minLength
+|integer
+|true
+|Minimum length of a string.
+
+|minimum
+|integer
+|true
+|Minimum value of a number.
+
+|pattern
+|`string`
+|true
+|Regular expression a string must match.
+
+|properties
+|object
+|true
+|The properties, by name, for an object.
+
+|required
+|array with items of type `string`
+|false
+|Names of the mandatory properties.
+
+|title
+|`string`
+|true
+|Human oriented name of the schema.
+
+|type
+|`string`
+|true
+|JSON-Schema type: object, array, string, integer, number or boolean.
+|===
+
+=== ListPromptsResponse (io.yupiik.fusion.mcp.model.ListPromptsResponse) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|nextCursor
+|`string`
+|true
+|Cursor to pass to the next call, absent when everything was returned.
+
+|prompts
+|array with items of type object of type `io.yupiik.fusion.mcp.model.ListPromptsResponse.Prompt`
+|false
+|The available prompts.
+|===
+
+=== Prompt (io.yupiik.fusion.mcp.model.ListPromptsResponse.Prompt) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|arguments
+|array with items of type object of type `io.yupiik.fusion.mcp.model.ListPromptsResponse.Prompt.Argument`
+|false
+|The arguments the prompt takes, all strings.
+
+|description
+|`string`
+|true
+|What the prompt is for.
+
+|name
+|`string`
+|true
+|Programmatic name of the prompt, what prompts/get takes.
+
+|title
+|`string`
+|true
+|Human oriented name of the prompt.
+|===
+
+=== Argument (io.yupiik.fusion.mcp.model.ListPromptsResponse.Prompt.Argument) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|description
+|`string`
+|true
+|What the argument is for.
+
+|name
+|`string`
+|true
+|Programmatic name of the argument, the key to pass to prompts/get.
+
+|required
+|`boolean`
+|true
+|Set when the argument must be provided.
+
+|title
+|`string`
+|true
+|Human oriented name of the argument.
+|===
+
+=== ListResourcesResponse (io.yupiik.fusion.mcp.model.ListResourcesResponse) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|nextCursor
+|`string`
+|true
+|Cursor to pass to the next call, absent when everything was returned.
+
+|resources
+|array with items of type object of type `io.yupiik.fusion.mcp.model.Resource`
+|false
+|The available resources.
+|===
+
+=== ListResourceTemplatesResponse (io.yupiik.fusion.mcp.model.ListResourceTemplatesResponse) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|nextCursor
+|`string`
+|true
+|Cursor to pass to the next call, absent when everything was returned.
+
+|resourceTemplates
+|array with items of type object of type `io.yupiik.fusion.mcp.model.ResourceTemplate`
+|false
+|The available parameterized resources.
+|===
+
+=== ListToolsResponse (io.yupiik.fusion.mcp.model.ListToolsResponse) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|nextCursor
+|`string`
+|true
+|Cursor to pass to the next call, absent when everything was returned.
+
+|tools
+|array with items of type object of type `io.yupiik.fusion.mcp.model.ListToolsResponse.Tool`
+|false
+|The callable tools.
+|===
+
+=== Tool (io.yupiik.fusion.mcp.model.ListToolsResponse.Tool) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|annotations
+|object of type `io.yupiik.fusion.mcp.model.Annotations`
+|true
+|Optional hints for the client.
+
+|description
+|`string`
+|true
+|What the tool does, this is what the model reads to decide to call it.
+
+|inputSchema
+|object of type `io.yupiik.fusion.mcp.model.JsonSchema`
+|true
+|Schema of the arguments.
+
+|name
+|`string`
+|true
+|Programmatic name of the tool, what tools/call takes.
+
+|outputSchema
+|object of type `io.yupiik.fusion.mcp.model.JsonSchema`
+|true
+|Schema of the structured result, absent when there is none.
+
+|title
+|`string`
+|true
+|Human oriented name of the tool.
+|===
+
+=== Metadata (io.yupiik.fusion.mcp.model.Metadata) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|name
+|`string`
+|true
+|Reserved name attribute.
+
+|others
+|object
+|true
+|Every other attribute, this object being free form.
+
+|title
+|`string`
+|true
+|Reserved title attribute.
+|===
+
+=== PromptResponse (io.yupiik.fusion.mcp.model.PromptResponse) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|description
+|`string`
+|true
+|What the expanded prompt is about.
+
+|messages
+|array with items of type object of type `io.yupiik.fusion.mcp.model.PromptResponse.Message`
+|false
+|The messages the prompt expands to.
+|===
+
+=== Message (io.yupiik.fusion.mcp.model.PromptResponse.Message) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|content
+|object of type `io.yupiik.fusion.mcp.model.Content`
+|true
+|The message content.
+
+|role
+|enum with potential values `user`, `assistant`
+|true
+|Who the message comes from.
+|===
+
+=== ReadResourceResponse (io.yupiik.fusion.mcp.model.ReadResourceResponse) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|contents
+|array with items of type object of type `io.yupiik.fusion.mcp.model.ResourceContents`
+|false
+|The contents of the resource, a single uri can expand to several.
+|===
+
+=== Resource (io.yupiik.fusion.mcp.model.Resource) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|annotations
+|object of type `io.yupiik.fusion.mcp.model.Annotations`
+|true
+|Optional hints for the client.
+
+|description
+|`string`
+|true
+|What the resource contains.
+
+|mimeType
+|`string`
+|true
+|Mime type of the resource, when known.
+
+|name
+|`string`
+|true
+|Programmatic name of the resource.
+
+|size
+|integer
+|true
+|Size in bytes, when known.
+
+|title
+|`string`
+|true
+|Human oriented name of the resource.
+
+|uri
+|`string`
+|true
+|Uri of the resource, what resources/read takes.
+|===
+
+=== ResourceContents (io.yupiik.fusion.mcp.model.ResourceContents) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|blob
+|`string`
+|true
+|The base64 encoded content when it is binary, exclusive with text.
+
+|mimeType
+|`string`
+|true
+|Mime type of the content.
+
+|text
+|`string`
+|true
+|The content when it is textual, exclusive with blob.
+
+|uri
+|`string`
+|true
+|Uri of the resource.
+|===
+
+=== ResourceTemplate (io.yupiik.fusion.mcp.model.ResourceTemplate) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|annotations
+|object of type `io.yupiik.fusion.mcp.model.Annotations`
+|true
+|Optional hints for the client.
+
+|description
+|`string`
+|true
+|What the resources this template generates contain.
+
+|mimeType
+|`string`
+|true
+|Mime type of the generated resources, when constant.
+
+|name
+|`string`
+|true
+|Programmatic name of the template.
+
+|title
+|`string`
+|true
+|Human oriented name of the template.
+
+|uriTemplate
+|`string`
+|true
+|A RFC 6570 uri template, file:///logs/{name}.log for example.
+|===
+
+=== ToolResponse (io.yupiik.fusion.mcp.model.ToolResponse) schema
+
+[cols="m,1a,m,3a",opts=header]
+|===
+|Name |Type |Nullable |Description
+
+|_meta
+|object of type `io.yupiik.fusion.mcp.model.Metadata`
+|true
+|Optional free form metadata.
+
+|content
+|array with items of type object of type `io.yupiik.fusion.mcp.model.Content`
+|false
+|The content blocks, what a model without structured output support reads.
+
+|isError
+|`boolean`
+|false
+|Set when the tool failed, the model is expected to read the error.
+
+|structuredContent
+|object
+|true
+|The structured result, it must match the tool outputSchema when there is one.
+|===
+

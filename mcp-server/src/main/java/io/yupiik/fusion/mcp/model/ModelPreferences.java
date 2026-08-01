@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 import java.util.List;
@@ -24,9 +25,13 @@ import java.util.List;
  */
 @JsonModel
 public record ModelPreferences(
+        @Property(documentation = "How much cost matters, from 0 to 1.")
         Integer costPriority,
+        @Property(documentation = "Preferred models, in order.")
         List<ModelHint> hints,
+        @Property(documentation = "How much capability matters, from 0 to 1.")
         Integer intelligencePriority,
+        @Property(documentation = "How much latency matters, from 0 to 1.")
         Integer speedPriority
 ) {
     public static final int NOT_IMPORTANT_COST = 0;

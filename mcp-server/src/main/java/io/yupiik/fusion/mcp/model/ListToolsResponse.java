@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
@@ -26,17 +27,26 @@ import java.util.List;
  */
 @JsonModel
 public record ListToolsResponse(
+        @Property(documentation = "The callable tools.")
         List<Tool> tools,
+        @Property(documentation = "Cursor to pass to the next call, absent when everything was returned.")
         String nextCursor
 ) {
     @JsonModel
     public record Tool(
+            @Property(documentation = "Optional free form metadata.")
             @JsonProperty("_meta") Metadata metadata,
+            @Property(documentation = "Optional hints for the client.")
             Annotations annotations,
+            @Property(documentation = "Human oriented name of the tool.")
             String title,
+            @Property(documentation = "Programmatic name of the tool, what tools/call takes.")
             String name,
+            @Property(documentation = "What the tool does, this is what the model reads to decide to call it.")
             String description,
+            @Property(documentation = "Schema of the arguments.")
             JsonSchema inputSchema,
+            @Property(documentation = "Schema of the structured result, absent when there is none.")
             JsonSchema outputSchema
     ) {
     }

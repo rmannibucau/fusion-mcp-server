@@ -15,8 +15,15 @@
  */
 package io.yupiik.fusion.mcp.demo.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * Note the {@code @Property} documentation: it lands in the generated JSON schema, so it becomes the description the
+ * model reads in the tool {@code outputSchema} - a payload is documented exactly like a parameter is.
+ */
 @JsonModel
-public record Demo(String greeting) {
+public record Demo(
+        @Property(documentation = "The greeting sentence, ready to be shown to the user.")
+        String greeting) {
 }

@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 /**
@@ -23,9 +24,13 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
  */
 @JsonModel
 public record CompletionRef(
+        @Property(documentation = "Either ref/prompt or ref/resource.")
         String type, // ref/prompt or ref/resource
+        @Property(documentation = "Prompt name, when completing a prompt argument.")
         String name, // ref/prompt
+        @Property(documentation = "Human oriented name of the prompt.")
         String title, // ref/prompt
+        @Property(documentation = "Resource template uri, when completing a template variable.")
         String uri // ref/resource
 ) {
 }

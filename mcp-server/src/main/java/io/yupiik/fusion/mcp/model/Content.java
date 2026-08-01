@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
@@ -28,22 +29,34 @@ import java.util.Base64;
  */
 @JsonModel
 public record Content(
+        @Property(documentation = "Optional free form metadata.")
         @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "Optional hints for the client.")
         Annotations annotations,
+        @Property(documentation = "Which kind of content this block carries.")
         Type type,
         // type=text
+        @Property(documentation = "The text, for a text block.")
         String text,
         // type=image/audio, base64 encoded
+        @Property(documentation = "The base64 encoded payload, for an image or audio block.")
         String data,
         // type=image/audio/resource_link
+        @Property(documentation = "Mime type of the payload.")
         String mimeType,
         // type=resource
+        @Property(documentation = "The embedded resource contents, for a resource block.")
         ResourceContents resource,
         // type=resource_link
+        @Property(documentation = "Uri of the linked resource, for a resource_link block.")
         String uri,
+        @Property(documentation = "Programmatic name of the linked resource.")
         String name,
+        @Property(documentation = "Human oriented name of the linked resource.")
         String title,
+        @Property(documentation = "What the linked resource contains.")
         String description,
+        @Property(documentation = "Size of the linked resource in bytes, when known.")
         Long size) {
     @JsonModel
     public enum Type {

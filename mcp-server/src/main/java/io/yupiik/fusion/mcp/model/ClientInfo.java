@@ -16,6 +16,7 @@
 
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 /**
@@ -23,8 +24,11 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
  */
 @JsonModel
 public record ClientInfo(
+        @Property(documentation = "Programmatic name of the client.")
         String name,
+        @Property(documentation = "Human oriented name of the client.")
         String title,
+        @Property(documentation = "Version of the client.")
         String version
 ) {
 }

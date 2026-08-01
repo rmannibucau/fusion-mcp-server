@@ -48,7 +48,7 @@ class DescriptorsTest {
     @Test
     void onlyFlaggedMethodsAreExposed(@Fusion final DescriptorService descriptors) {
         assertEquals(
-                List.of("demo/ask", "demo/greet", "demo/log", "demo/tool"),
+                List.of("demo/ask", "demo/confirm", "demo/greet", "demo/log", "demo/roots", "demo/search", "demo/tool"),
                 descriptors.tools().tools().stream().map(ListToolsResponse.Tool::name).toList());
         assertEquals(
                 List.of("demo/prompt"),

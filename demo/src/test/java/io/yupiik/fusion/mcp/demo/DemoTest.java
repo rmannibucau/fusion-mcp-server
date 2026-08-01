@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.demo;
 
+import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.mcp.client.MCPClient;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
@@ -22,6 +23,8 @@ import org.junit.jupiter.api.Test;
 
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.util.List;
+import java.util.Map;
 
 import static io.yupiik.fusion.testing.assertion.JsonAsserts.assertJsonEquals;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -65,96 +68,152 @@ class DemoTest {
     }
 
     @Test
-    void listTools(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
+    void listToolNames(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
             client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "tools/list", "{}").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
-            // the descriptions and the schemas come from the OpenRPC document Fusion generates from the signatures
+            // only the @MCPTool methods, in a stable order
+            assertEquals(
+                    List.of("demo/ask", "demo/confirm", "demo/greet", "demo/log", "demo/roots", "demo/search", "demo/tool"),
+                    names(res.body()));
+        }
+    }
+
+    @Test
+    void toolDescriptor(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final JsonMapper jsons) {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize().toCompletableFuture().join();
+            final var res = client.call(2, "tools/list", "{}").toCompletableFuture().join();
+
+            // the description, the parameter documentation and both schemas come from the OpenRPC document Fusion
+            // generates out of the method signature
+            assertJsonEquals("""
+                            {
+                              "description": "Greets someone by name.",
+                              "inputSchema": {
+                                "description": "Input request for demo/greet",
+                                "properties": {
+                                  "name": {"description": "Who to greet.", "type": "string"},
+                                  "times": {
+                                    "description": "How many times to greet, defaults to 1.",
+                                    "format": "int32",
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": ["name"],
+                                "type": "object"
+                              },
+                              "name": "demo/greet",
+                              "outputSchema": {
+                                "properties": {
+                                  "something": {
+                                    "description": "What the tool has to say, a plain sentence.",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [],
+                                "type": "object"
+                              },
+                              "title": "demo/greet"
+                            }""",
+                    tool(jsons, res.body(), "demo/greet"));
+        }
+    }
+
+    @Test
+    void richInputSchema(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final JsonMapper jsons) {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize().toCompletableFuture().join();
+            final var res = client.call(2, "tools/list", "{}").toCompletableFuture().join();
+
+            // a nested model is inlined - no $ref a client could not resolve - a collection becomes items, a map
+            // becomes additionalProperties, an enum becomes enum and a primitive is required
+            assertJsonEquals("""
+                            {
+                              "description": "Searches the demo catalog.",
+                              "inputSchema": {
+                                "description": "Input request for demo/search",
+                                "properties": {
+                                  "query": {
+                                    "description": "The query.",
+                                    "properties": {
+                                      "fuzzy": {
+                                        "description": "Should approximate matches be returned too.",
+                                        "type": "boolean"
+                                      },
+                                      "text": {
+                                        "description": "The text to search for, mandatory.",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": ["fuzzy"],
+                                    "type": "object"
+                                  },
+                                  "tags": {
+                                    "description": "Tags to filter on.",
+                                    "items": {"type": "string"},
+                                    "type": "array"
+                                  },
+                                  "options": {
+                                    "additionalProperties": {"type": "string"},
+                                    "description": "Extra options.",
+                                    "type": "object"
+                                  },
+                                  "limit": {
+                                    "description": "How many results at most.",
+                                    "format": "int32",
+                                    "type": "integer"
+                                  },
+                                  "direction": {
+                                    "description": "Sort direction.",
+                                    "enum": ["asc", "desc"],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["limit", "query"],
+                                "type": "object"
+                              },
+                              "name": "demo/search",
+                              "outputSchema": {
+                                "properties": {
+                                  "something": {
+                                    "description": "What the tool has to say, a plain sentence.",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [],
+                                "type": "object"
+                              },
+                              "title": "demo/search"
+                            }""",
+                    tool(jsons, res.body(), "demo/search"));
+        }
+    }
+
+    @Test
+    void callToolWithRichArguments(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize().toCompletableFuture().join();
+
+            final var res = client.call(2, "tools/call", """
+                    {"name": "demo/search", "arguments": {
+                       "query": {"text": "fusion", "fuzzy": true},
+                       "tags": ["a", "b"],
+                       "options": {"k": "v"},
+                       "limit": 10,
+                       "direction": "desc"
+                     }}""").toCompletableFuture().join();
+
             assertJsonEquals("""
                             {
                               "jsonrpc": "2.0",
                               "id": 2,
                               "result": {
-                                "tools": [
-                                  {
-                                    "description": "Asks the client model to answer a question.",
-                                    "inputSchema": {
-                                      "description": "Input request for demo/ask",
-                                      "properties": {
-                                        "question": {
-                                          "description": "The question to forward to the client model.",
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": ["question"],
-                                      "type": "object"
-                                    },
-                                    "name": "demo/ask",
-                                    "outputSchema": {
-                                      "properties": {"greeting": {"type": "string"}},
-                                      "required": [],
-                                      "type": "object"
-                                    },
-                                    "title": "demo/ask"
-                                  },
-                                  {
-                                    "description": "Greets someone by name.",
-                                    "inputSchema": {
-                                      "description": "Input request for demo/greet",
-                                      "properties": {
-                                        "name": {"description": "Who to greet.", "type": "string"},
-                                        "times": {
-                                          "description": "How many times to greet, defaults to 1.",
-                                          "format": "int32",
-                                          "type": "integer"
-                                        }
-                                      },
-                                      "required": ["name"],
-                                      "type": "object"
-                                    },
-                                    "name": "demo/greet",
-                                    "outputSchema": {
-                                      "properties": {"something": {"type": "string"}},
-                                      "required": [],
-                                      "type": "object"
-                                    },
-                                    "title": "demo/greet"
-                                  },
-                                  {
-                                    "description": "Sends a log record to the client over the SSE channel.",
-                                    "inputSchema": {
-                                      "description": "Input request for demo/log",
-                                      "properties": {"message": {"description": "What to log.", "type": "string"}},
-                                      "required": [],
-                                      "type": "object"
-                                    },
-                                    "name": "demo/log",
-                                    "outputSchema": {
-                                      "properties": {"greeting": {"type": "string"}},
-                                      "required": [],
-                                      "type": "object"
-                                    },
-                                    "title": "demo/log"
-                                  },
-                                  {
-                                    "description": "Demo.",
-                                    "inputSchema": {
-                                      "description": "Input request for demo/tool",
-                                      "properties": {},
-                                      "required": [],
-                                      "type": "object"
-                                    },
-                                    "name": "demo/tool",
-                                    "outputSchema": {
-                                      "properties": {"greeting": {"type": "string"}},
-                                      "required": [],
-                                      "type": "object"
-                                    },
-                                    "title": "demo/tool"
-                                  }
-                                ]
+                                "content": [{"text": "{\\"something\\":\\"fusion/2/1/10/desc\\"}", "type": "text"}],
+                                "isError": false,
+                                "structuredContent": {"something": "fusion/2/1/10/desc"}
                               }
                             }""",
                     res.body());
@@ -490,6 +549,100 @@ class DemoTest {
         }
     }
 
+    /**
+     * The elicitation round trip: the tool asks the user, the client answers on the same endpoint.
+     */
+    @Test
+    void elicitation(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize("""
+                    {"elicitation": {}}""").toCompletableFuture().join();
+
+            final var call = client.call(2, "tools/call", """
+                    {"name": "demo/confirm", "arguments": {"action": "deploy"}}""");
+
+            final var request = client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join();
+            assertTrue(request.contains("\"method\":\"elicitation/create\""), request);
+            assertTrue(request.contains("\"Really deploy?\""), request);
+            // the requested schema is a flat object of primitives, as the specification requires
+            assertTrue(request.contains("\"requestedSchema\":{"), request);
+            assertTrue(request.contains("\"confirm\":{\"description\":\"Confirm the action?\",\"type\":\"boolean\"}"), request);
+            assertTrue(request.contains("\"required\":[\"confirm\"]"), request);
+
+            client.respond(requestId(request), """
+                    {"action": "accept", "content": {"confirm": true}}""").toCompletableFuture().join();
+
+            assertTrue(call.toCompletableFuture().get(30, SECONDS).body().contains("confirmed: true"));
+        }
+    }
+
+    @Test
+    void elicitationCanBeDeclined(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize("""
+                    {"elicitation": {}}""").toCompletableFuture().join();
+
+            final var call = client.call(2, "tools/call", """
+                    {"name": "demo/confirm", "arguments": {"action": "deploy"}}""");
+            final var request = client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join();
+
+            client.respond(requestId(request), """
+                    {"action": "decline"}""").toCompletableFuture().join();
+
+            // the tool must read the action before the content, which is only set on accept
+            assertTrue(call.toCompletableFuture().get(30, SECONDS).body().contains("declined"));
+        }
+    }
+
+    /**
+     * The roots round trip: the tool asks what the client gives access to.
+     */
+    @Test
+    void roots(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize("""
+                    {"roots": {"listChanged": true}}""").toCompletableFuture().join();
+
+            final var call = client.call(2, "tools/call", """
+                    {"name": "demo/roots", "arguments": {}}""");
+
+            final var request = client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join();
+            assertTrue(request.contains("\"method\":\"roots/list\""), request);
+
+            client.respond(requestId(request), """
+                    {"roots": [{"uri": "file:///work", "name": "work"}, {"uri": "file:///tmp", "name": "tmp"}]}""")
+                    .toCompletableFuture()
+                    .join();
+
+            final var res = call.toCompletableFuture().get(30, SECONDS);
+            assertJsonEquals("""
+                            {
+                              "jsonrpc": "2.0",
+                              "id": 2,
+                              "result": {
+                                "content": [{"text": "{\\"something\\":\\"file:///work, file:///tmp\\"}", "type": "text"}],
+                                "isError": false,
+                                "structuredContent": {"something": "file:///work, file:///tmp"}
+                              }
+                            }""",
+                    res.body());
+        }
+    }
+
+    @Test
+    void serverRequestsNeedTheirCapability(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize().toCompletableFuture().join(); // no capability at all
+
+            assertTrue(client.call(2, "tools/call", """
+                    {"name": "demo/confirm", "arguments": {"action": "deploy"}}""")
+                    .toCompletableFuture().join().body().contains("Client does not support 'elicitation'"));
+            assertTrue(client.call(3, "tools/call", """
+                    {"name": "demo/roots", "arguments": {}}""")
+                    .toCompletableFuture().join().body().contains("Client does not support 'roots'"));
+        }
+    }
+
     private long requestId(final String message) {
         final var marker = "\"id\":";
         final var start = message.indexOf(marker) + marker.length();
@@ -498,5 +651,29 @@ class DemoTest {
             end++;
         }
         return Long.parseLong(message.substring(start, end));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> names(final String body) {
+        return tools(body).stream().map(it -> String.valueOf(it.get("name"))).toList();
+    }
+
+    /**
+     * @return the descriptor of one tool, re-serialized, so a test can assert on it alone.
+     */
+    private String tool(final JsonMapper jsons, final String body, final String name) {
+        return jsons.toString(tools(body).stream()
+                .filter(it -> name.equals(it.get("name")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No tool '" + name + "' in " + body)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> tools(final String body) {
+        try (final var mapper = new io.yupiik.fusion.json.internal.JsonMapperImpl(List.of(), key -> java.util.Optional.empty())) {
+            final var response = (Map<String, Object>) mapper.fromString(Object.class, body);
+            final var result = (Map<String, Object>) response.get("result");
+            return (List<Map<String, Object>>) result.get("tools");
+        }
     }
 }

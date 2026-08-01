@@ -104,7 +104,7 @@ needs a `required` list on the enclosing object, and `DescriptorService` does th
 
 == Specification coverage
 
-[options="header",cols="2,1,3"]
+[options="header",cols="2,1,2"]
 |===
 | Feature | Status | Notes
 | `initialize`, `notifications/initialized`, `ping` | ✅ | Version negotiation, session creation.
@@ -128,3 +128,10 @@ needs a `required` list on the enclosing object, and `DescriptorService` does th
 `Optional` JSON codec - so return `T` or a `CompletionStage<T>`,
 * Fusion >= 1.0.38 is required: earlier releases describe an asynchronous result as a map of `T` in the generated
 OpenRPC document, which would make the `outputSchema` of every asynchronous tool wrong.
+
+== JSON-RPC reference of the protocol methods
+
+The MCP methods are plain `@JsonRpc` methods, so they end up in the OpenRPC document of the library like any other -
+this section is generated from it and therefore always matches what is deployed.
+
+include::{partialsdir}/generated/openrpc.mcp.adoc[leveloffset=+1]

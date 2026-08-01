@@ -13,23 +13,18 @@ mvn package -pl demo exec:exec
 
 Then register `http://localhost:8080/mcp` in a client - see xref:../deployment/clients.adoc[Clients].
 
-== What it exposes
+The tools and the prompt it exposes - names, descriptions, parameters and schemas - are listed in the
+xref:#demo-reference[reference] at the end of this page, generated from the module itself.
 
-[options="header",cols="1,1,2"]
-|===
-| Name | Kind | Shows
-| `demo/tool` | tool | the minimal case: no argument, a `@JsonModel` result.
-| `demo/greet` | tool | required and optional arguments, documented, and a failure reported as `isError` when the name is blank.
-| `demo/log` | tool | pushing a log record to the client with `MCPNotifier`.
-| `demo/ask` | tool | asking the *client model* to answer, i.e. sampling, and an asynchronous result (`CompletionStage`).
-| `demo/prompt` | prompt | a template with one argument.
-| `demo://greeting` | resource | a static resource.
-| `demo://echo/{message}` | resource template | a parameterized resource.
-| `code` argument | completion | suggesting values for the `demo/prompt` argument.
-|===
+Source: `demo/src/main/java/io/yupiik/fusion/mcp/demo/` - about 200 lines in three classes:
 
-Source: `demo/src/main/java/io/yupiik/fusion/mcp/demo/` - `DemoTools`, `DemoResources` and `DemoCompletions`, about
-150 lines in total.
+[options="header",cols="1,3"]
+|===
+| Class | Extension point
+| `DemoTools` | the `@MCPTool` methods and the `@MCPPrompt` one, from the minimal case to sampling, elicitation and roots.
+| `DemoResources` | `MCPResources`: a static resource (`demo://greeting`) and a template (`demo://echo/{message}`), neither being a JSON-RPC method so they are not in the generated reference.
+| `DemoCompletions` | `MCPCompletions`: suggesting values for the `code` argument of `demo/prompt`.
+|===
 
 == A guided session
 
@@ -102,3 +97,11 @@ mvn package arthur:native-image -pl demo
 
 No configuration is needed beyond what Fusion generates: no reflection, no dynamic proxy, and the OpenRPC document
 the tool descriptors come from is registered as a resource by the processor.
+
+[#demo-reference]
+== Reference
+
+Generated from `demo/target/classes/META-INF/fusion/jsonrpc/openrpc.json`, i.e. from the signatures themselves - it
+is the same document the server builds its tool descriptors from.
+
+include::{partialsdir}/generated/openrpc.demo.adoc[leveloffset=+1]

@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 import java.util.Map;
@@ -32,13 +33,18 @@ import java.util.Map;
  */
 @JsonModel
 public record Capabilities(
+        @Property(documentation = "Set when the client exposes filesystem roots.")
         Roots roots,
+        @Property(documentation = "Set when the client can run a LLM completion for the server.")
         Map<String, Object> sampling,
+        @Property(documentation = "Set when the client can ask its user for a structured input.")
         Map<String, Object> elicitation,
+        @Property(documentation = "Non standard capabilities, keyed by name.")
         Map<String, Object> experimental
 ) {
     @JsonModel
     public record Roots(
+            @Property(documentation = "Set when the client notifies the server the list changed.")
             boolean listChanged
     ) {
     }

@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
@@ -25,7 +26,9 @@ import java.util.List;
  */
 @JsonModel
 public record ReadResourceResponse(
+        @Property(documentation = "Optional free form metadata.")
         @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "The contents of the resource, a single uri can expand to several.")
         List<ResourceContents> contents
 ) {
     public static ReadResourceResponse of(final ResourceContents... contents) {

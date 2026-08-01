@@ -28,6 +28,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.logging.Level.FINE;
 import static java.util.logging.Level.FINEST;
 import static java.util.logging.Level.SEVERE;
 
@@ -47,11 +48,17 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
 
     private static final ByteBuffer KEEP_ALIVE = ByteBuffer.wrap(": ping\n\n".getBytes(UTF_8)).asReadOnlyBuffer();
 
+    /**
+     * Sentinel of {@link #replayFrom}: no {@code Last-Event-ID} was requested.
+     */
+    private static final long NO_REPLAY = -1;
+
     private final Logger logger = Logger.getLogger(SseBus.class.getName());
 
     private final Lock lock = new ReentrantLock();
     private final AtomicLong pending = new AtomicLong();
     private final AtomicLong lastEventId = new AtomicLong();
+    private final AtomicLong replayFrom = new AtomicLong(NO_REPLAY);
     private final AtomicBoolean closed = new AtomicBoolean();
     // serializes the emission, the HTTP layer calls request(1) from within onNext so drain() is re-entrant
     private final AtomicInteger wip = new AtomicInteger();
@@ -81,17 +88,15 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
     }
 
     /**
-     * Re-queues the frames the client did not get.
+     * Arms the replay of the frames the client did not get: they are re-queued when the next stream subscribes.
+     * <p>
+     * It is deliberately not immediate - the transport calls this while building the response, i.e. before the HTTP
+     * layer subscribes - else the previous, already dead, subscriber would silently swallow the replayed frames.
      *
      * @param lastEventId the value of the {@code Last-Event-ID} header.
      */
     public void replayFrom(final long lastEventId) {
-        sent.stream()
-                .filter(it -> it.id() > lastEventId)
-                .toList()
-                .reversed()
-                .forEach(frames::addFirst);
-        drain();
+        replayFrom.set(lastEventId);
     }
 
     /**
@@ -125,6 +130,19 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
             complete(subscriber); // at most one stream per session, the last one to connect wins
             subscriber = newSubscriber;
             pending.set(0);
+
+            // everything queued here targets the new subscriber only: doing it before the swap would let the
+            // previous - already dead - one silently swallow the frames, and the new stream would never flush
+            final var from = replayFrom.getAndSet(NO_REPLAY);
+            if (from >= 0) {
+                sent.stream()
+                        .filter(it -> it.id() > from)
+                        .toList()
+                        .reversed()
+                        .forEach(frames::addFirst);
+            }
+            // a comment first: it commits the HTTP response so the client knows the stream is live before any message
+            frames.addFirst(Frame.KEEP_ALIVE_FRAME);
         } finally {
             lock.unlock();
         }
@@ -200,7 +218,8 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
         try {
             current.onNext(buffer);
         } catch (final RuntimeException re) {
-            logger.log(SEVERE, re, re::getMessage);
+            // a client going away mid-stream is the normal end of a SSE channel, not a server error
+            logger.log(FINE, re, () -> "Can't write to the SSE channel, dropping it: " + re.getMessage());
             forget(current);
             try {
                 current.onError(re);

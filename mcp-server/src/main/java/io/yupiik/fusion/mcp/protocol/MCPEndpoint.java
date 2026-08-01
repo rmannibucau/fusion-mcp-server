@@ -27,6 +27,7 @@ import io.yupiik.fusion.mcp.configuration.MCPConfiguration;
 
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
@@ -193,7 +194,9 @@ public class MCPEndpoint {
             builder.header(SESSION_HEADER, resolution.session().id());
         }
 
-        if (payload == null) { // notification(s) and/or response(s) only
+        // a notification has no response, and neither has a batch made of notifications only - which the JSON-RPC
+        // stack reports as an empty list
+        if (payload == null || (payload instanceof Collection<?> responses && responses.isEmpty())) {
             return builder.status(202).build();
         }
         return builder

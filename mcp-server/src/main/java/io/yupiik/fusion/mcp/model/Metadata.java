@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonOthers;
 
@@ -26,8 +27,11 @@ import java.util.Map;
  */
 @JsonModel
 public record Metadata(
+        @Property(documentation = "Reserved name attribute.")
         String name,
+        @Property(documentation = "Reserved title attribute.")
         String title,
+        @Property(documentation = "Every other attribute, this object being free form.")
         @JsonOthers Map<String, Object> others
 ) {
 }

@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 import java.util.Map;
@@ -23,5 +24,7 @@ import java.util.Map;
  * The arguments already resolved when completing another one, it enables dependent completions.
  */
 @JsonModel
-public record CompletionContext(Map<String, String> arguments) {
+public record CompletionContext(
+        @Property(documentation = "The arguments already resolved, by name, to enable dependent completions.")
+        Map<String, String> arguments) {
 }

@@ -77,9 +77,8 @@ public class MCPSSEProtocol {
             }
         }
 
-        // a comment right away commits the response, so the client - and any proxy in between - knows the stream is
-        // live even when the server has nothing to say yet
-        sse.keepAlive();
+        // note: the bus greets every new subscriber with a comment, which commits the response, so a client opening
+        // the stream never waits for the first message to know it is live
 
         // the stream stays open until the client closes it or the session is dropped
         request.unwrap(HttpServletRequest.class).getAsyncContext().setTimeout(0);

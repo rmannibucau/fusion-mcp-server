@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
@@ -32,9 +33,16 @@ import java.util.Base64;
  */
 @JsonModel
 public record ResourceContents(
+        @Property(documentation = "Optional free form metadata.")
         @JsonProperty("_meta") Metadata metadata,
-        String uri, String mimeType,
+        @Property(documentation = "Uri of the resource.")
+        String uri,
+
+        @Property(documentation = "Mime type of the content.")
+        String mimeType,
+        @Property(documentation = "The content when it is textual, exclusive with blob.")
         String text,
+        @Property(documentation = "The base64 encoded content when it is binary, exclusive with text.")
         String blob
 ) {
     public static ResourceContents text(final String uri, final String mimeType, final String text) {

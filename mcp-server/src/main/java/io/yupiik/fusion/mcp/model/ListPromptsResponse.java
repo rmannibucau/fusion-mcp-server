@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
@@ -26,22 +27,35 @@ import java.util.List;
  */
 @JsonModel
 public record ListPromptsResponse(
+        @Property(documentation = "The available prompts.")
         List<Prompt> prompts,
+        @Property(documentation = "Cursor to pass to the next call, absent when everything was returned.")
         String nextCursor
 ) {
     @JsonModel
     public record Prompt(
+            @Property(documentation = "Optional free form metadata.")
             @JsonProperty("_meta") Metadata metadata,
+            @Property(documentation = "Human oriented name of the prompt.")
             String title,
+            @Property(documentation = "Programmatic name of the prompt, what prompts/get takes.")
             String name,
+            @Property(documentation = "What the prompt is for.")
             String description,
+            @Property(documentation = "The arguments the prompt takes, all strings.")
             List<Argument> arguments
     ) {
         @JsonModel
         public record Argument(
+                @Property(documentation = "Human oriented name of the argument.")
                 String title,
+
+                @Property(documentation = "Programmatic name of the argument, the key to pass to prompts/get.")
                 String name,
+
+                @Property(documentation = "What the argument is for.")
                 String description,
+                @Property(documentation = "Set when the argument must be provided.")
                 Boolean required
         ) {
         }

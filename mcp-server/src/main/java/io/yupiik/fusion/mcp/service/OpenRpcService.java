@@ -124,36 +124,42 @@ public class OpenRpcService {
         if (ref != null && !Objects.equals(ref, schema.id())) {
             final var name = ref.startsWith(REF_PREFIX) ? ref.substring(REF_PREFIX.length()) : ref;
             if (!visitedRefs.add(name)) { // cycle, stop there with an opaque object
-                return new OpenRpc.JsonSchema(
-                        null, null, "object", schema.nullable(), schema.description(), null, null, null, true, null, null);
+                return opaque(schema);
             }
             try {
                 final var jsonSchema = world.get(name);
+                if (jsonSchema == null) {
+                    // an unresolvable reference - a document referencing a schema of a module which is not deployed -
+                    // must not leak as a dangling $ref, MCP clients get no schema registry to look it up in
+                    return opaque(schema);
+                }
                 return ofNullable(resolveRefs(world, jsonSchema, visitedRefs)).orElse(jsonSchema);
             } finally {
                 visitedRefs.remove(name);
             }
         }
 
-        if ("object".equals(schema.type()) && schema.properties() != null) {
+        if ("object".equals(schema.type())) {
             // allocate only if one nested schema resolves
             Map<String, OpenRpc.JsonSchema> newProperties = null;
-            for (final var prop : schema.properties().entrySet()) {
-                final var resolved = resolveRefs(world, prop.getValue(), visitedRefs);
-                if (resolved != null) {
-                    if (newProperties == null) {
-                        newProperties = new HashMap<>(schema.properties());
+            if (schema.properties() != null) {
+                for (final var prop : schema.properties().entrySet()) {
+                    final var resolved = resolveRefs(world, prop.getValue(), visitedRefs);
+                    if (resolved != null) {
+                        if (newProperties == null) {
+                            newProperties = new HashMap<>(schema.properties());
+                        }
+                        newProperties.put(prop.getKey(), resolved);
                     }
-                    newProperties.put(prop.getKey(), resolved);
                 }
             }
 
-            // handle additional props (for maps mainly)
+            // additional properties, i.e. a Map<String, X> - note it has no property at all in that case
             Object additionalProps = schema.additionalProperties();
-            if (schema.additionalProperties() instanceof Map<?, ?>) {
-                final var addPropSchema = jsons.fromString(OpenRpc.JsonSchema.class, jsons.toString(schema.additionalProperties()));
+            if (additionalProps instanceof Map<?, ?>) {
+                final var addPropSchema = jsons.fromString(OpenRpc.JsonSchema.class, jsons.toString(additionalProps));
                 final var additionalPropsResolved = resolveRefs(world, addPropSchema, visitedRefs);
-                additionalProps = additionalPropsResolved != null ? additionalPropsResolved : schema.additionalProperties();
+                additionalProps = additionalPropsResolved != null ? additionalPropsResolved : additionalProps;
             }
 
             if (newProperties != null || additionalProps != schema.additionalProperties()) {
@@ -172,5 +178,14 @@ public class OpenRpcService {
             }
         }
         return null;
+    }
+
+    /**
+     * @param schema the schema which cannot be expanded.
+     * @return an object accepting anything, i.e. the most precise thing which can be said without the reference.
+     */
+    private OpenRpc.JsonSchema opaque(final OpenRpc.JsonSchema schema) {
+        return new OpenRpc.JsonSchema(
+                null, null, "object", schema.nullable(), schema.description(), null, null, null, true, null, null);
     }
 }
