@@ -45,6 +45,7 @@
     <modules>
         <module>mcp-server</module>
         <module>demo</module>
+        <module>documentation</module>
     </modules>
 
     <dependencyManagement>

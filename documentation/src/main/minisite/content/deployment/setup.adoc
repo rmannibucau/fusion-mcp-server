@@ -1,0 +1,135 @@
+= Setup
+:minisite-nav-prev-label: Deployment
+:minisite-nav-prev-link: index.html
+:minisite-nav-next-label: Configuration
+:minisite-nav-next-link: configuration.html
+
+== Requirements
+
+* Java >= 25 - the project is built with the Fusion annotation processor, which runs at compile time,
+* Yupiik Fusion >= 1.0.38 - older releases describe an asynchronous JSON-RPC result incorrectly in the generated
+OpenRPC document, which would make the `outputSchema` of every `CompletionStage<T>` tool wrong,
+* Apache Maven >= 4.0.0-rc1 to build this project itself (an application consuming it has no such constraint).
+
+== Dependencies
+
+An application needs the usual Fusion triad plus this module:
+
+[source,xml,subs="verbatim,attributes"]
+----
+<dependencies>
+  <dependency> <!-- build time only: annotations -->
+    <groupId>io.yupiik.fusion</groupId>
+    <artifactId>fusion-build-api</artifactId>
+    <version>{fusionVersion}</version>
+    <scope>provided</scope>
+  </dependency>
+  <dependency> <!-- build time only: the generator -->
+    <groupId>io.yupiik.fusion</groupId>
+    <artifactId>fusion-processor</artifactId>
+    <version>{fusionVersion}</version>
+    <scope>provided</scope>
+  </dependency>
+  <dependency>
+    <groupId>io.yupiik.fusion</groupId>
+    <artifactId>fusion-api</artifactId>
+    <version>{fusionVersion}</version>
+  </dependency>
+  <dependency> <!-- the MCP transport, protocol and model -->
+    <groupId>io.yupiik.fusion.mcp</groupId>
+    <artifactId>fusion-mcp-server-impl</artifactId>
+    <version>{projectVersion}</version>
+  </dependency>
+</dependencies>
+----
+
+TIP: `fusion-mcp-server-impl` brings `fusion-jsonrpc` and `fusion-http-server` transitively, there is nothing else
+to add to get an HTTP server serving MCP.
+
+Ensure the annotation processor runs on the whole module:
+
+[source,xml]
+----
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-compiler-plugin</artifactId>
+  <configuration>
+    <proc>full</proc>
+  </configuration>
+</plugin>
+----
+
+IMPORTANT: the processor must see all the classes at once, so incremental compilation should be disabled - else a
+tool can be missing from the generated OpenRPC document and therefore from `tools/list`.
+
+== A complete server
+
+Two classes are enough - one tool and its result model:
+
+[source,java]
+----
+package demo;
+
+import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
+import io.yupiik.fusion.framework.build.api.json.JsonModel;
+import io.yupiik.fusion.framework.build.api.jsonrpc.JsonRpc;
+import io.yupiik.fusion.framework.build.api.jsonrpc.JsonRpcParam;
+import io.yupiik.fusion.mcp.api.MCPTool;
+
+@ApplicationScoped
+public class Tools {
+    @MCPTool
+    @JsonRpc(value = "demo/greet", documentation = "Greets someone by name.")
+    public Greeting greet(@JsonRpcParam(required = true, documentation = "Who to greet.") final String name) {
+        return new Greeting("hello " + name);
+    }
+
+    @JsonModel
+    public record Greeting(String greeting) {}
+}
+----
+
+Then run the Fusion launcher, `io.yupiik.fusion.framework.api.main.Launcher`, and the server listens on
+`http://localhost:8080/mcp`:
+
+[source,bash]
+----
+java -cp "target/classes:$(cat target/classpath.txt)" io.yupiik.fusion.framework.api.main.Launcher
+----
+
+The demo module of this repository uses `exec-maven-plugin` to do exactly that:
+
+[source,bash]
+----
+mvn package -pl demo exec:exec
+----
+
+== Endpoints
+
+[options="header",cols="1,3"]
+|===
+| Route | Purpose
+| `POST /mcp` | JSON-RPC requests, notifications and the responses to server requests.
+| `GET /mcp` | the `text/event-stream` channel used to push messages to the client.
+| `DELETE /mcp` | session termination.
+|===
+
+The port is the standard Fusion one, `fusion.http-server.port` (default `8080`). See
+xref:configuration.adoc[Configuration] for the rest and xref:transport.adoc[Transport] for the protocol details.
+
+== GraalVM native image
+
+Nothing specific is required: no reflection is used, all the JSON codecs and beans are generated at build time and
+Fusion registers the resources it needs (including the OpenRPC document the tool descriptors are built from). The
+demo module is native-compiled with Apache Geronimo Arthur:
+
+[source,bash]
+----
+mvn package arthur:native-image -pl demo
+# and, to also build a container image
+mvn package arthur:native-image arthur:docker -pl demo
+----
+
+== Next
+
+Expose your features: xref:../mcp/tools.adoc[Tools], xref:../mcp/prompts.adoc[Prompts], xref:../mcp/resources.adoc[Resources].

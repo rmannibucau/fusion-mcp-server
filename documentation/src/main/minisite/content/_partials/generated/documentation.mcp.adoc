@@ -1,0 +1,39 @@
+[options="header",cols="a,a,2a,a"]
+|===
+|Name |Env Variable |Description |Default
+
+| `fusion.mcp.clientRequestTimeout` 
+| `FUSION_MCP_CLIENTREQUESTTIMEOUT`
+| Timeout, in seconds, of the requests sent to the client (sampling, elicitation, roots).
+| `30`
+
+| `fusion.mcp.instructions` 
+| `FUSION_MCP_INSTRUCTIONS`
+| Instructions sent to the client/model.
+| `Use the exposed tools to answer the user.`
+
+| `fusion.mcp.name` 
+| `FUSION_MCP_NAME`
+| Programmatic server name.
+| `fusion-mcp-server`
+
+| `fusion.mcp.requireSession` 
+| `FUSION_MCP_REQUIRESESSION`
+| Should a valid Mcp-Session-Id header be mandatory once the session was created.
+| `false`
+
+| `fusion.mcp.sessionTimeout` 
+| `FUSION_MCP_SESSIONTIMEOUT`
+| Session idle timeout in seconds, 0 to disable the expiration.
+| `1800`
+
+| `fusion.mcp.title` 
+| `FUSION_MCP_TITLE`
+| Human readable server name.
+| `Fusion MCP Server`
+
+| `fusion.mcp.version` 
+| `FUSION_MCP_VERSION`
+| Server version.
+| `1.0.0`
+|===

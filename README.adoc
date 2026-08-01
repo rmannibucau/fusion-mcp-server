@@ -54,11 +54,16 @@ NOTE: the module only needs the Fusion annotation processor - which your applica
 
 == 📖 Documentation
 
-The repository provides two modules:
+The full documentation is published at https://yupiik.github.io/fusion-mcp-server/[yupiik.github.io/fusion-mcp-server]
+and its sources live in the `documentation` module (`mvn -pl documentation yupiik-tools:serve-minisite` for a live
+preview). What follows is a summary.
+
+The repository provides three modules:
 
 * `mcp-server`: the MCP implementation on top of the Fusion JSON-RPC stack - streamable HTTP transport bound on
 `/mcp`, SSE channel, session handling and the MCP wire model,
-* `demo`: a sample MCP server exposing tools, a prompt, resources, completions and a sampling call.
+* `demo`: a sample MCP server exposing tools, a prompt, resources, completions and a sampling call,
+* `documentation`: the AsciiDoc minisite.
 
 === Design
 
@@ -286,27 +291,30 @@ All the keys can be set with a system property, an environment variable (`FUSION
 === Testing your server
 
 `MCPClient` is shipped in the main artifact - it has no test framework dependency - and drives a server the way a
-real client does, keeping the session and giving access to the SSE channel:
+real client does, keeping the session and giving access to the SSE channel. Every call returns a `CompletionStage`,
+and parameters accept either a JSON string or any object serialized with the `JsonMapper`:
 
 [source,java]
 ----
 @FusionSupport
 class MyToolsTest {
     @Test
-    void call(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
+    void call(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
 
             final var response = client.call(2, "tools/call", """
-                    {"name": "my/tool", "arguments": {"input": "fusion"}}""");
+                            {"name": "my/tool", "arguments": {"input": "fusion"}}""")
+                    .toCompletableFuture()
+                    .join();
             assertEquals(200, response.statusCode());
         }
     }
 }
 ----
 
-`openSse()`/`nextMessage(...)` read the server to client messages and `postAsync(...)` lets a sampling round trip be
-tested end to end - see `DemoTest` for a complete example.
+`openSse().thenCompose(client::nextMessage)` reads the server to client messages and `respond(id, result)` answers a
+sampling or elicitation request, so a full round trip is testable end to end - see `DemoTest#sampling`.
 
 === Implemented specification surface
 

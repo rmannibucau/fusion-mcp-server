@@ -1,0 +1,116 @@
+= Resources
+:minisite-nav-prev-label: Prompts
+:minisite-nav-prev-link: prompts.html
+:minisite-nav-next-label: Server to client
+:minisite-nav-next-link: server-to-client.html
+
+A resource is data the client can read and attach to a conversation: a file, a configuration, a database row, an API
+payload. Resources are dynamic by nature - they are data, not code - so unlike tools and prompts they are not mapped
+on JSON-RPC methods but provided at runtime by any bean implementing `MCPResources`:
+
+[source,java]
+----
+@ApplicationScoped
+public class MyResources implements MCPResources {
+    @Override
+    public List<Resource> resources() { <1>
+        return List.of(Resource.of("app://config", "config", "application/json", "The application configuration."));
+    }
+
+    @Override
+    public List<ResourceTemplate> resourceTemplates() { <2>
+        return List.of(ResourceTemplate.of("app://logs/{day}", "logs", "text/plain", "A daily log file."));
+    }
+
+    @Override
+    public Optional<ReadResourceResponse> read(final String uri) { <3>
+        if ("app://config".equals(uri)) {
+            return Optional.of(ReadResourceResponse.of(
+                    ResourceContents.text(uri, "application/json", configuration())));
+        }
+        if (uri.startsWith("app://logs/")) {
+            return Optional.of(ReadResourceResponse.of(
+                    ResourceContents.text(uri, "text/plain", log(uri.substring("app://logs/".length())))));
+        }
+        return Optional.empty(); <4>
+    }
+}
+----
+<1> `resources/list`: the resources with a stable uri.
+<2> `resources/templates/list`: the parameterized ones, using a RFC 6570 uri template.
+<3> `resources/read`: resolve a uri, whether it comes from the list or from a template expansion.
+<4> Not ours - the next provider gets a chance, and if none answers the client gets `-32002`.
+
+All the implementations are used and visited in bean priority order (`@Order`), which is how a module can add its own
+resources without knowing the others. The `resources` capability - and the related methods - is only advertised when
+at least one implementation exists.
+
+== Descriptor versus contents
+
+Two types, mirroring the specification:
+
+[options="header",cols="1,3"]
+|===
+| Type | Role
+| `Resource` | the *descriptor*: uri, name, title, description, mime type, size. This is what `resources/list` returns, it does not carry any data.
+| `ResourceContents` | the *content*: `text` or base64 `blob`, plus the uri and mime type. This is what `resources/read` returns.
+|===
+
+`ResourceContents.text(uri, mimeType, text)` and `ResourceContents.blob(uri, mimeType, bytes)` cover both cases, the
+latter encoding the bytes for you. A single uri can expand to several contents - a directory, a multi part document:
+
+[source,java]
+----
+return Optional.of(new ReadResourceResponse(null, List.of(
+        ResourceContents.text(uri + "/README.adoc", "text/asciidoc", readme),
+        ResourceContents.blob(uri + "/logo.png", "image/png", logo))));
+----
+
+== Subscriptions and change notifications
+
+The server tracks subscriptions per session, so `resources/subscribe` and `resources/unsubscribe` need no code on
+your side. Emitting the change does:
+
+[source,java]
+----
+@ApplicationScoped
+public class MyResources implements MCPResources {
+    private final MCPNotifier notifier;
+
+    public MyResources(final MCPNotifier notifier) {
+        this.notifier = notifier;
+    }
+
+    public void onConfigurationReloaded() {
+        notifier.resourceUpdated("app://config"); <1>
+    }
+
+    public void onNewLogFile() {
+        notifier.resourceListChanged(); <2>
+    }
+}
+----
+<1> Only sent to the sessions which subscribed to that exact uri.
+<2> Sent to every connected client, they are expected to call `resources/list` again.
+
+NOTE: a client only receives these while it keeps a `GET /mcp` stream open; messages emitted in between are buffered
+per session and delivered when it reconnects. See xref:server-to-client.adoc[Server to client].
+
+== Linking a resource from a tool
+
+A tool does not have to inline a big payload in its answer, it can point at a resource the client will read if it
+needs it:
+
+[source,java]
+----
+return new ToolResponse(null, false, List.of(
+        Content.text("The report is ready."),
+        Content.resourceLink("app://reports/2025-01", "report", "text/markdown")), null);
+----
+
+== Uri conventions
+
+MCP does not impose a scheme. Use a stable, meaningful one - `app://`, `file://`, `db://table/id` - because a uri is
+what a client stores when the user attaches a resource to a conversation. Templates should stay simple: one variable
+per path segment, no query string, so a client can offer completion on the variables (see
+xref:prompts.adoc[Completing the arguments], with `ref.type()` being `ref/resource`).

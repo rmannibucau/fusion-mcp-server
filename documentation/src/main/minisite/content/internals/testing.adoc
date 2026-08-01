@@ -1,0 +1,200 @@
+= Testing
+:minisite-nav-prev-label: Design
+:minisite-nav-prev-link: design.html
+:minisite-nav-next-label: Demo
+:minisite-nav-next-link: demo.html
+
+`MCPClient` is shipped in the main artifact - it has no test framework dependency - and drives a server the way a real
+client does: it runs the handshake, keeps the `Mcp-Session-Id` header across calls and reads the SSE channel.
+
+Every call returns a `CompletionStage`, which is what a MCP interaction needs: a tool using sampling or elicitation
+only answers once the client responded on the SSE channel, so its invocation cannot be awaited first.
+
+== A first test
+
+Combine it with `fusion-testing`, which starts the container and a server on a random port:
+
+[source,java]
+----
+@FusionSupport
+class MyToolsTest {
+    @Test
+    void call(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize().toCompletableFuture().join(); <1>
+
+            final var response = client.call(2, "tools/call", """
+                    {"name": "my/tool", "arguments": {"name": "fusion"}}""") <2>
+                    .toCompletableFuture()
+                    .join();
+
+            assertEquals(200, response.statusCode());
+            assertJsonEquals("""
+                    {
+                      "jsonrpc": "2.0",
+                      "id": 2,
+                      "result": {
+                        "content": [{"text": "{\\"greeting\\":\\"hello fusion\\"}", "type": "text"}],
+                        "isError": false,
+                        "structuredContent": {"greeting": "hello fusion"}
+                      }
+                    }""", response.body()); <3>
+        }
+    }
+}
+----
+<1> `initialize` + `notifications/initialized`, and the session is kept for the next calls.
+<2> `call(id, method, params)` sends a JSON-RPC request.
+<3> `io.yupiik.fusion.testing.assertion.JsonAsserts#assertJsonEquals` compares formatted JSON, so the assertion reads
+like the wire.
+
+The `URI` and `HttpClient` come from test beans - see `demo/src/test/java/.../test/TestBeans.java` and `RandomPort`
+in this repository for a two class setup binding the port to `0`.
+
+== The API
+
+[options="header",cols="2,3"]
+|===
+| Method | Sends
+| `initialize(capabilities)` | the handshake, capturing the session id. `initialize()` declares no capability.
+| `call(id, method, params)` | a JSON-RPC request.
+| `notify(method, params)` | a notification, i.e. no id.
+| `respond(id, result)` | a response to a request the server sent on the SSE channel.
+| `post(body)` | any raw message, including a batch.
+| `openSse()` / `openSse(lastEventId)` | opens the event stream, resuming it when an id is given.
+| `nextMessage(stream)` | the next server to client message, without the SSE framing.
+| `terminate()` | `DELETE /mcp`.
+| `session()` / `session(id)` | reads or forces the session id, the latter being handy to test the invalid cases.
+|===
+
+Parameters and bodies accept either a string - used as is, which keeps the JSON readable in a test - or any object,
+serialized with the `JsonMapper` given to the constructor:
+
+[source,java]
+----
+try (final var client = new MCPClient(mcpEndpoint, http, jsonMapper)) { // @Fusion JsonMapper jsonMapper
+    client.initialize(Map.of("sampling", Map.of())).toCompletableFuture().join();
+    client.call(2, "tools/call", Map.of("name", "my/tool", "arguments", Map.of("name", "fusion")))
+            .toCompletableFuture()
+            .join();
+}
+----
+
+NOTE: passing an object without a mapper fails immediately with an explicit message, it never sends a broken body.
+
+== Asserting the descriptors
+
+The most valuable test of a MCP server is often the descriptor one: it locks what the *model* reads.
+
+[source,java]
+----
+@Test
+void listTools(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
+    try (final var client = new MCPClient(mcpEndpoint, http)) {
+        client.initialize().toCompletableFuture().join();
+        assertJsonEquals("""
+                {
+                  "jsonrpc": "2.0",
+                  "id": 2,
+                  "result": {"tools": [{
+                    "description": "Greets someone by name.",
+                    "inputSchema": {
+                      "description": "Input request for my/tool",
+                      "properties": {"name": {"description": "Who to greet.", "type": "string"}},
+                      "required": ["name"],
+                      "type": "object"
+                    },
+                    "name": "my/tool",
+                    "outputSchema": {"properties": {"greeting": {"type": "string"}}, "required": [], "type": "object"},
+                    "title": "my/tool"
+                  }]}
+                }""", client.call(2, "tools/list", "{}").toCompletableFuture().join().body());
+    }
+}
+----
+
+Alternatively inject `DescriptorService` and assert on the model instead of the JSON:
+
+[source,java]
+----
+@Test
+void onlyAnnotatedMethodsAreExposed(@Fusion final DescriptorService descriptors) {
+    assertEquals(List.of("my/tool"), descriptors.tools().tools().stream().map(ListToolsResponse.Tool::name).toList());
+    assertFalse(descriptors.isTool("initialize"));
+}
+----
+
+== Notifications
+
+Open the stream and read the next message - the two compose. Messages are buffered, so publishing *before* opening is
+fine and makes the test deterministic:
+
+[source,java]
+----
+@Test
+void logging(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final MCPNotifier notifier) {
+    try (final var client = new MCPClient(mcpEndpoint, http)) {
+        client.initialize().toCompletableFuture().join();
+        notifier.log(LoggingLevel.warning, "test", "hello sse!");
+
+        assertJsonEquals("""
+                {
+                  "jsonrpc": "2.0",
+                  "method": "notifications/message",
+                  "params": {"level": "warning", "logger": "test", "data": "hello sse!"}
+                }""",
+                client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join());
+    }
+}
+----
+
+== Server requests: the full round trip
+
+A tool using sampling only completes once the client answered, so its call must not be awaited before the answer is
+sent - which is exactly what the asynchronous API expresses:
+
+[source,java]
+----
+@Test
+void sampling(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
+    try (final var client = new MCPClient(mcpEndpoint, http)) {
+        client.initialize("""
+                {"sampling": {}}""").toCompletableFuture().join(); <1>
+
+        final var call = client.call(2, "tools/call", """
+                {"name": "my/ask", "arguments": {"question": "how are you?"}}"""); <2>
+
+        final var request = client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join(); <3>
+        assertTrue(request.contains("\\"method\\":\\"sampling/createMessage\\""), request);
+
+        client.respond(idOf(request), """
+                {"role": "assistant", "model": "test-model",
+                 "content": {"type": "text", "text": "fine, thanks!"}}""")
+                .toCompletableFuture()
+                .join(); <4>
+
+        assertTrue(call.toCompletableFuture().get(30, SECONDS).body().contains("fine, thanks!")); <5>
+    }
+}
+----
+<1> Declare the capability, else the tool fails fast with `Client does not support 'sampling'`.
+<2> Not awaited: the tool is blocked on the client answer.
+<3> The server request, read from the SSE channel; parse its `id` to answer it.
+<4> `respond(id, result)` posts the response on the same endpoint - it answers `202`.
+<5> The tool result is now available.
+
+== Transport level tests
+
+[source,java]
+----
+client.initialize().toCompletableFuture().join();
+assertEquals(204, client.terminate().toCompletableFuture().join().statusCode());          // DELETE /mcp
+assertEquals(404, client.call(3, "ping", "{}").toCompletableFuture().join().statusCode()); // the session is gone
+
+new MCPClient(endpoint, http).session("made-up");   // force an invalid session id
+client.openSse("12");                               // resume from Last-Event-ID: 12
+client.post("[{...},{...}]");                       // a batch
+----
+
+TIP: this repository uses exactly that - `MCPJSONRPCProtocolTest` for the protocol, `MCPTransportTest` for the
+transport, `MCPClientTest` for the client and `DemoTest` for a real server. Read them as executable documentation.

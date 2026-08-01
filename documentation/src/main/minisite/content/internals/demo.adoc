@@ -1,0 +1,104 @@
+= Demo
+:minisite-nav-prev-label: Testing
+:minisite-nav-prev-link: testing.html
+:minisite-nav-next-label: Contributing
+:minisite-nav-next-link: contributing.html
+
+The `demo` module is a complete MCP server, small enough to be read in one sitting, exercising every extension point.
+
+[source,bash]
+----
+mvn package -pl demo exec:exec
+----
+
+Then register `http://localhost:8080/mcp` in a client - see xref:../deployment/clients.adoc[Clients].
+
+== What it exposes
+
+[options="header",cols="1,1,2"]
+|===
+| Name | Kind | Shows
+| `demo/tool` | tool | the minimal case: no argument, a `@JsonModel` result.
+| `demo/greet` | tool | required and optional arguments, documented, and a failure reported as `isError` when the name is blank.
+| `demo/log` | tool | pushing a log record to the client with `MCPNotifier`.
+| `demo/ask` | tool | asking the *client model* to answer, i.e. sampling, and an asynchronous result (`CompletionStage`).
+| `demo/prompt` | prompt | a template with one argument.
+| `demo://greeting` | resource | a static resource.
+| `demo://echo/{message}` | resource template | a parameterized resource.
+| `code` argument | completion | suggesting values for the `demo/prompt` argument.
+|===
+
+Source: `demo/src/main/java/io/yupiik/fusion/mcp/demo/` - `DemoTools`, `DemoResources` and `DemoCompletions`, about
+150 lines in total.
+
+== A guided session
+
+[source,bash]
+----
+MCP=http://localhost:8080/mcp
+SID=$(curl -si -X POST $MCP -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+        "protocolVersion":"2025-06-18","capabilities":{"sampling":{}},
+        "clientInfo":{"name":"curl","version":"1"}}}' \
+  | grep -i mcp-session-id | tr -d '\r' | cut -d' ' -f2)
+post() { curl -s -X POST $MCP -H 'content-type: application/json' -H "mcp-session-id: $SID" -d "$1"; }
+
+post '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+# a tool, with its structured result
+post '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"demo/greet","arguments":{"name":"fusion","times":3}}}'
+# {"result":{"content":[{"text":"{\"something\":\"hello fusion!!!\"}","type":"text"}],
+#            "isError":false,"structuredContent":{"something":"hello fusion!!!"}}}
+
+# a failure: readable by the model, not a protocol error
+post '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"demo/greet","arguments":{"name":" "}}}'
+# {"result":{"content":[{"text":"name should not be blank","type":"text"}],"isError":true, ...}}
+
+# a prompt and the completion of its argument
+post '{"jsonrpc":"2.0","id":4,"method":"prompts/get","params":{"name":"demo/prompt","arguments":{"code":"1234"}}}'
+post '{"jsonrpc":"2.0","id":5,"method":"completion/complete","params":{
+        "ref":{"type":"ref/prompt","name":"demo/prompt"},"argument":{"name":"code","value":"f"}}}'
+# {"result":{"completion":{"hasMore":false,"total":1,"values":["fusion"]}}}
+
+# a templated resource
+post '{"jsonrpc":"2.0","id":6,"method":"resources/read","params":{"uri":"demo://echo/hello"}}'
+----
+
+== Watching the server talk back
+
+Open the stream in one terminal:
+
+[source,bash]
+----
+curl -N $MCP -H 'accept: text/event-stream' -H "mcp-session-id: $SID"
+----
+
+and call the logging tool in another:
+
+[source,bash]
+----
+post '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"demo/log","arguments":{"message":"hello"}}}'
+----
+
+The stream shows the record:
+
+[source,text]
+----
+id: 1
+event: message
+data: {"jsonrpc":"2.0","method":"notifications/message","params":{"data":"hello","level":"info","logger":"demo"}}
+----
+
+`demo/ask` goes one step further: it sends a `sampling/createMessage` request on that stream and waits for the client
+to post the answer back - the full round trip is scripted in `DemoTest#sampling`, see xref:testing.adoc[Testing].
+
+== Native image
+
+[source,bash]
+----
+mvn package arthur:native-image -pl demo
+./demo/target/fusion-mcp-server-demo.graal.bin
+----
+
+No configuration is needed beyond what Fusion generates: no reflection, no dynamic proxy, and the OpenRPC document
+the tool descriptors come from is registered as a resource by the processor.

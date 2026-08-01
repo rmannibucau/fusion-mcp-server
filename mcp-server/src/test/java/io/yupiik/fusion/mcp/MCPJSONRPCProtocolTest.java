@@ -15,7 +15,7 @@
  */
 package io.yupiik.fusion.mcp;
 
-import io.yupiik.fusion.mcp.testing.MCPClient;
+import io.yupiik.fusion.mcp.client.MCPClient;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
 import org.junit.jupiter.api.Test;
@@ -38,7 +38,7 @@ class MCPJSONRPCProtocolTest {
     void initialize(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
             final var res = client.initialize("""
-                    {"roots": {"listChanged": true}, "sampling": {}, "elicitation": {}}""");
+                    {"roots": {"listChanged": true}, "sampling": {}, "elicitation": {}}""").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             assertNotNull(client.session(), "initialize must return a Mcp-Session-Id header");
@@ -75,7 +75,7 @@ class MCPJSONRPCProtocolTest {
                       "id": 1,
                       "method": "initialize",
                       "params": {"protocolVersion": "2024-11-05", "capabilities": {}}
-                    }""");
+                    }""").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             assertTrue(res.body().contains("\"protocolVersion\":\"2025-06-18\""), res.body());
@@ -91,7 +91,7 @@ class MCPJSONRPCProtocolTest {
                       "id": 1,
                       "method": "initialize",
                       "params": {"protocolVersion": "2025-03-26", "capabilities": {}}
-                    }""");
+                    }""").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             assertTrue(res.body().contains("\"protocolVersion\":\"2025-03-26\""), res.body());
@@ -101,8 +101,8 @@ class MCPJSONRPCProtocolTest {
     @Test
     void ping(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
-            final var res = client.call(2, "ping", "{}");
+            client.initialize().toCompletableFuture().join();
+            final var res = client.call(2, "ping", "{}").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             assertJsonEquals("""
@@ -113,9 +113,9 @@ class MCPJSONRPCProtocolTest {
     @Test
     void notificationIsAccepted(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.post("""
-                    {"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 5, "reason": "user"}}""");
+                    {"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 5, "reason": "user"}}""").toCompletableFuture().join();
 
             // a notification has no response, the transport must answer 202 with an empty body
             assertEquals(202, res.statusCode());
@@ -126,30 +126,30 @@ class MCPJSONRPCProtocolTest {
     @Test
     void emptyListings(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
 
             assertJsonEquals("""
-                    {"jsonrpc": "2.0", "id": 2, "result": {"tools": []}}""", client.call(2, "tools/list", "{}").body());
+                    {"jsonrpc": "2.0", "id": 2, "result": {"tools": []}}""", client.call(2, "tools/list", "{}").toCompletableFuture().join().body());
             assertJsonEquals("""
-                    {"jsonrpc": "2.0", "id": 3, "result": {"prompts": []}}""", client.call(3, "prompts/list", "{}").body());
+                    {"jsonrpc": "2.0", "id": 3, "result": {"prompts": []}}""", client.call(3, "prompts/list", "{}").toCompletableFuture().join().body());
             assertJsonEquals("""
-                    {"jsonrpc": "2.0", "id": 4, "result": {"resources": []}}""", client.call(4, "resources/list", "{}").body());
+                    {"jsonrpc": "2.0", "id": 4, "result": {"resources": []}}""", client.call(4, "resources/list", "{}").toCompletableFuture().join().body());
             assertJsonEquals("""
                             {"jsonrpc": "2.0", "id": 5, "result": {"resourceTemplates": []}}""",
-                    client.call(5, "resources/templates/list", "{}").body());
+                    client.call(5, "resources/templates/list", "{}").toCompletableFuture().join().body());
             assertJsonEquals("""
                             {"jsonrpc": "2.0", "id": 6, "result": {"completion": {"hasMore": false, "total": 0, "values": []}}}""",
                     client.call(6, "completion/complete", """
-                            {"ref": {"type": "ref/prompt", "name": "nope"}, "argument": {"name": "a", "value": ""}}""").body());
+                            {"ref": {"type": "ref/prompt", "name": "nope"}, "argument": {"name": "a", "value": ""}}""").toCompletableFuture().join().body());
         }
     }
 
     @Test
     void callUnknownTool(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "tools/call", """
-                    {"name": "ping", "arguments": {}}""");
+                    {"name": "ping", "arguments": {}}""").toCompletableFuture().join();
 
             // ping is a JSON-RPC method but not a tool, it must not be reachable through tools/call
             assertEquals(200, res.statusCode());
@@ -170,8 +170,8 @@ class MCPJSONRPCProtocolTest {
     @Test
     void unknownMethod(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
-            final var res = client.call(2, "does/notExist", "{}");
+            client.initialize().toCompletableFuture().join();
+            final var res = client.call(2, "does/notExist", "{}").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             assertJsonEquals("""
@@ -187,13 +187,20 @@ class MCPJSONRPCProtocolTest {
     @Test
     void setLoggingLevel(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
 
-            assertEquals(202, client.post("""
-                    {"jsonrpc": "2.0", "method": "logging/setLevel", "params": {"level": "debug"}}""").statusCode());
+            // MCP defines it as a request, so it answers an empty result - a client awaiting it must not hang
+            assertJsonEquals("""
+                            {"jsonrpc": "2.0", "id": 2, "result": {}}""",
+                    client.call(2, "logging/setLevel", """
+                            {"level": "debug"}""").toCompletableFuture().join().body());
 
-            final var invalid = client.call(2, "logging/setLevel", """
-                    {"level": "oops"}""");
+            // a client sending it as a notification - no id - gets that result too and simply ignores it
+            assertEquals(200, client.notify("logging/setLevel", """
+                    {"level": "debug"}""").toCompletableFuture().join().statusCode());
+
+            final var invalid = client.call(3, "logging/setLevel", """
+                    {"level": "oops"}""").toCompletableFuture().join();
             assertEquals(200, invalid.statusCode());
             assertTrue(invalid.body().contains("Invalid logging level 'oops'"), invalid.body());
         }
@@ -202,9 +209,9 @@ class MCPJSONRPCProtocolTest {
     @Test
     void readUnknownResource(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "resources/read", """
-                    {"uri": "demo://nope"}""");
+                    {"uri": "demo://nope"}""").toCompletableFuture().join();
 
             assertJsonEquals("""
                             {
@@ -223,13 +230,13 @@ class MCPJSONRPCProtocolTest {
     @Test
     void batch(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.post("""
                     [
                       {"jsonrpc": "2.0", "id": 2, "method": "ping", "params": {}},
                       {"jsonrpc": "2.0", "method": "notifications/roots/list_changed"},
                       {"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}}
-                    ]""");
+                    ]""").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             assertJsonEquals("""

@@ -1,0 +1,159 @@
+= Tools
+:minisite-nav-prev-label: MCP
+:minisite-nav-prev-link: index.html
+:minisite-nav-next-label: Prompts
+:minisite-nav-next-link: prompts.html
+
+A tool is what the model can decide to execute. Flag any Fusion JSON-RPC method with `@MCPTool`:
+
+[source,java]
+----
+@ApplicationScoped
+public class MyTools {
+    @MCPTool
+    @JsonRpc(value = "my/tool", documentation = "Converts an amount between two currencies.")
+    public Conversion convert(
+            @JsonRpcParam(required = true, documentation = "The amount to convert.") final double amount,
+            @JsonRpcParam(required = true, documentation = "Source currency, ISO 4217.") final String from,
+            @JsonRpcParam(documentation = "Target currency, defaults to EUR.") final String to) {
+        return new Conversion(...);
+    }
+}
+----
+
+== What the client sees
+
+`tools/list` is built from the OpenRPC document the Fusion processor generates, so the descriptor is a projection of
+the signature:
+
+[options="header",cols="1,2"]
+|===
+| MCP attribute | Comes from
+| `name` | the `@JsonRpc` value.
+| `description` | the `@JsonRpc` `documentation` - this is what the model reads to decide to call the tool, write it for a model, not for a developer.
+| `inputSchema.properties` | the method parameters, in declaration order.
+| `inputSchema.properties.*.description` | the `@JsonRpcParam` `documentation`.
+| `inputSchema.required` | the parameters flagged `@JsonRpcParam(required = true)` and the primitives.
+| `outputSchema` | the returned type, when it is a JSON model.
+|===
+
+For the example above:
+
+[source,json]
+----
+{
+  "name": "my/tool",
+  "title": "my/tool",
+  "description": "Converts an amount between two currencies.",
+  "inputSchema": {
+    "type": "object",
+    "description": "Input request for my/tool",
+    "properties": {
+      "amount": {"type": "number", "description": "The amount to convert."},
+      "from": {"type": "string", "description": "Source currency, ISO 4217."},
+      "to": {"type": "string", "description": "Target currency, defaults to EUR."}
+    },
+    "required": ["amount", "from"]
+  },
+  "outputSchema": {"type": "object", "properties": {"...": {}}, "required": []}
+}
+----
+
+NOTE: descriptors are computed once at startup, so `tools/list` costs nothing and never triggers user code.
+
+== Results
+
+The returned value is sent twice, on purpose:
+
+* as `structuredContent`, the typed result, validated by the client against `outputSchema`,
+* as a `text` content block holding its JSON representation, for the models without structured output support.
+
+Return a `ToolResponse` instead of your own model to control the content blocks:
+
+[source,java]
+----
+@MCPTool
+@JsonRpc(value = "my/report", documentation = "Builds the daily report.")
+public ToolResponse report() {
+    return ToolResponse.text("= Report", "Everything is fine.");
+}
+----
+
+`Content` covers every MCP content type - `text`, `image`, `audio`, `resource_link` and an embedded `resource`:
+
+[source,java]
+----
+return new ToolResponse(null, false, List.of(
+        Content.text("Here is the chart you asked for:"),
+        Content.image("image/png", pngBytes),
+        Content.resourceLink("app://reports/2025-01", "report", "text/markdown")), null);
+----
+
+== Asynchronous tools
+
+Return a `CompletionStage<T>`, which is the right thing to do for any tool doing I/O - the HTTP thread is not held:
+
+[source,java]
+----
+@MCPTool
+@JsonRpc(value = "my/fetch", documentation = "Fetches a document.")
+public CompletionStage<Document> fetch(@JsonRpcParam(required = true) final String id) {
+    return repository.findById(id);
+}
+----
+
+The `outputSchema` describes `T`, i.e. what is actually sent on the wire.
+
+CAUTION: use `CompletionStage<T>`, not `CompletableFuture<T>`, and avoid `Optional<T>` - Fusion has no `Optional`
+JSON codec so such a result would not serialize.
+
+== Failures
+
+Any exception is reported as a *tool failure*, not as a protocol error: the result carries `isError: true` and the
+message as a text block so the model can read it and react - retry, ask the user, give up:
+
+[source,java]
+----
+@MCPTool
+@JsonRpc(value = "my/tool", documentation = "...")
+public Result run(@JsonRpcParam(required = true) final String input) {
+    if (input.isBlank()) {
+        throw new IllegalArgumentException("input should not be blank"); // -> isError: true
+    }
+    ...
+}
+----
+
+Only an invalid *call* is a JSON-RPC error: unknown tool, missing or unbindable argument. Throw a
+`JsonRpcException` with a reserved code (`-32600` to `-32603`) to force that behavior.
+
+TIP: a failure message is read by a model, so make it actionable: `"unknown customer id, list them with
+my/customers"` beats `"IllegalArgumentException"`.
+
+== Reaching the session
+
+Declare a `Request` parameter - Fusion injects the HTTP request, it is not exposed to the model - then get the MCP
+session from it. This is how a tool logs, reports progress or asks something to the client:
+
+[source,java]
+----
+@MCPTool
+@JsonRpc(value = "my/import", documentation = "Imports a file.")
+public CompletionStage<Report> importFile(@JsonRpcParam(required = true) final String uri, final Request request) {
+    final var session = sessions.of(request); // MCPSessions is injected in the constructor
+    session.log(new MessageNotification("import", LoggingLevel.info, "starting " + uri));
+    return doImport(uri);
+}
+----
+
+See xref:server-to-client.adoc[Server to client] for logging, progress, sampling, elicitation and roots.
+
+== Security
+
+`tools/call` only accepts the methods flagged with `@MCPTool`. Every other JSON-RPC method - including the MCP
+protocol ones and the plain methods of your application - is rejected with `-32602`, so exposing an application as a
+MCP server never exposes more than what is annotated.
+
+Beyond that, treat a tool as a public HTTP endpoint: validate the arguments, and remember the model is driven by
+content it read somewhere, which may be hostile. Authentication and authorization are not MCP specific, use the
+regular Fusion HTTP means (a higher priority endpoint, a `BeforeRequest` listener, a reverse proxy).

@@ -1,0 +1,82 @@
+= Configuration
+:minisite-nav-prev-label: Setup
+:minisite-nav-prev-link: setup.html
+:minisite-nav-next-label: Transport
+:minisite-nav-next-link: transport.html
+
+All the options are read through the standard Fusion configuration, so each key can be set with a system property, an
+environment variable - the uppercased name in the second column - or any `ConfigurationSource` bean.
+
+== MCP options
+
+The following table is generated from the `MCPConfiguration` record at build time - by the
+`ConfigurationDocumentationGenerator` pre-action of the minisite plugin - it can therefore not drift from the
+implementation.
+
+include::{partialsdir}/generated/documentation.mcp.adoc[]
+
+Example:
+
+[source,bash]
+----
+java -Dfusion.mcp.name=my-server \
+     -Dfusion.mcp.instructions='Use my/search before answering anything about our catalog.' \
+     -Dfusion.mcp.requireSession=true \
+     ... io.yupiik.fusion.framework.api.main.Launcher
+----
+
+or, in a container:
+
+[source,bash]
+----
+FUSION_MCP_NAME=my-server
+FUSION_MCP_SESSIONTIMEOUT=600
+----
+
+=== instructions
+
+`fusion.mcp.instructions` is sent in the `initialize` result and prepended to the model context by most clients. It
+is the one option worth writing carefully: it is where you tell the model *when* to use this server.
+
+[source,text]
+----
+Use the catalog tools to answer any question about products, prices and stock.
+Never guess a price, always call my/price.
+----
+
+=== Session strictness
+
+`fusion.mcp.requireSession` (default `false`) trades interoperability for strictness - see
+xref:transport.adoc[Stateless clients]. Keep the default unless every client you target is known to send the
+`Mcp-Session-Id` header back.
+
+== Inherited Fusion options
+
+A MCP server is a plain Fusion HTTP application, so the whole Fusion configuration applies as is - the server port
+and host, the access log, observability, tracing, JWT. Those keys are documented - and generated - in the
+https://yupiik.github.io/fusion/[Fusion documentation], they are deliberately not duplicated here:
+
+[source,bash]
+----
+java -Dfusion.http-server.port=8081 ... io.yupiik.fusion.framework.api.main.Launcher
+----
+
+The only inherited key this project changes the default of is `fusion.jsonrpc.binding`: it is bound to `/mcp`
+instead of `/jsonrpc` so the MCP endpoint is the JSON-RPC one. Setting it back to `/jsonrpc` exposes the very same
+methods as a plain JSON-RPC API next to MCP - see xref:transport.adoc[Transport].
+
+== Overriding a default programmatically
+
+A `ConfigurationSource` bean wins over the built-in defaults, which is how this project itself binds the JSON-RPC
+endpoint on `/mcp`:
+
+[source,java]
+----
+@DefaultScoped
+public class MyDefaults implements ConfigurationSource {
+    @Override
+    public String get(final String key) {
+        return "fusion.mcp.name".equals(key) ? "my-server" : null;
+    }
+}
+----

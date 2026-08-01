@@ -15,7 +15,7 @@
  */
 package io.yupiik.fusion.mcp.demo;
 
-import io.yupiik.fusion.mcp.testing.MCPClient;
+import io.yupiik.fusion.mcp.client.MCPClient;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class DemoTest {
     @Test
     void initialize(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            final var res = client.initialize();
+            final var res = client.initialize().toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             assertJsonEquals("""
@@ -67,8 +67,8 @@ class DemoTest {
     @Test
     void listTools(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
-            final var res = client.call(2, "tools/list", "{}");
+            client.initialize().toCompletableFuture().join();
+            final var res = client.call(2, "tools/list", "{}").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             // the descriptions and the schemas come from the OpenRPC document Fusion generates from the signatures
@@ -164,9 +164,9 @@ class DemoTest {
     @Test
     void callTool(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "tools/call", """
-                    {"name": "demo/tool", "arguments": {}}""");
+                    {"name": "demo/tool", "arguments": {}}""").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             assertJsonEquals("""
@@ -188,9 +188,9 @@ class DemoTest {
     @Test
     void callToolWithArguments(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "tools/call", """
-                    {"name": "demo/greet", "arguments": {"name": "fusion", "times": 3}}""");
+                    {"name": "demo/greet", "arguments": {"name": "fusion", "times": 3}}""").toCompletableFuture().join();
 
             assertEquals(200, res.statusCode());
             assertJsonEquals("""
@@ -212,9 +212,9 @@ class DemoTest {
     @Test
     void toolFailureIsAResultNotAnError(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "tools/call", """
-                    {"name": "demo/greet", "arguments": {"name": " "}}""");
+                    {"name": "demo/greet", "arguments": {"name": " "}}""").toCompletableFuture().join();
 
             // the specification wants tool failures reported with isError so the model can read and react to them
             assertEquals(200, res.statusCode());
@@ -235,9 +235,9 @@ class DemoTest {
     @Test
     void invalidToolArgumentsIsAProtocolError(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "tools/call", """
-                    {"name": "demo/greet", "arguments": {}}""");
+                    {"name": "demo/greet", "arguments": {}}""").toCompletableFuture().join();
 
             // a missing required argument is not a tool failure, the call itself is invalid
             assertEquals(200, res.statusCode());
@@ -254,8 +254,8 @@ class DemoTest {
     @Test
     void listPrompts(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
-            final var res = client.call(2, "prompts/list", "{}");
+            client.initialize().toCompletableFuture().join();
+            final var res = client.call(2, "prompts/list", "{}").toCompletableFuture().join();
 
             assertJsonEquals("""
                             {
@@ -286,9 +286,9 @@ class DemoTest {
     @Test
     void getPrompt(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "prompts/get", """
-                    {"name": "demo/prompt", "arguments": {"code": "1234"}}""");
+                    {"name": "demo/prompt", "arguments": {"code": "1234"}}""").toCompletableFuture().join();
 
             assertJsonEquals("""
                             {
@@ -311,9 +311,9 @@ class DemoTest {
     @Test
     void getUnknownPrompt(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "prompts/get", """
-                    {"name": "demo/tool", "arguments": {}}""");
+                    {"name": "demo/tool", "arguments": {}}""").toCompletableFuture().join();
 
             // demo/tool is a tool, not a prompt
             assertTrue(res.body().contains("Unknown prompt 'demo/tool'"), res.body());
@@ -323,7 +323,7 @@ class DemoTest {
     @Test
     void listResources(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
 
             assertJsonEquals("""
                             {
@@ -341,7 +341,7 @@ class DemoTest {
                                 ]
                               }
                             }""",
-                    client.call(2, "resources/list", "{}").body());
+                    client.call(2, "resources/list", "{}").toCompletableFuture().join().body());
             assertJsonEquals("""
                             {
                               "jsonrpc": "2.0",
@@ -358,14 +358,14 @@ class DemoTest {
                                 ]
                               }
                             }""",
-                    client.call(3, "resources/templates/list", "{}").body());
+                    client.call(3, "resources/templates/list", "{}").toCompletableFuture().join().body());
         }
     }
 
     @Test
     void readResource(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
 
             assertJsonEquals("""
                             {
@@ -378,7 +378,7 @@ class DemoTest {
                               }
                             }""",
                     client.call(2, "resources/read", """
-                            {"uri": "demo://greeting"}""").body());
+                            {"uri": "demo://greeting"}""").toCompletableFuture().join().body());
             assertJsonEquals("""
                             {
                               "jsonrpc": "2.0",
@@ -390,19 +390,19 @@ class DemoTest {
                               }
                             }""",
                     client.call(3, "resources/read", """
-                            {"uri": "demo://echo/hi"}""").body());
+                            {"uri": "demo://echo/hi"}""").toCompletableFuture().join().body());
         }
     }
 
     @Test
     void complete(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var res = client.call(2, "completion/complete", """
                     {
                       "ref": {"type": "ref/prompt", "name": "demo/prompt"},
                       "argument": {"name": "code", "value": "f"}
-                    }""");
+                    }""").toCompletableFuture().join();
 
             assertJsonEquals("""
                             {
@@ -419,18 +419,18 @@ class DemoTest {
     @Test
     void logOverSse(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             assertEquals(200, client.call(2, "tools/call", """
-                    {"name": "demo/log", "arguments": {"message": "from the tool"}}""").statusCode());
+                    {"name": "demo/log", "arguments": {"message": "from the tool"}}""").toCompletableFuture().join().statusCode());
 
-            final var stream = client.openSse();
+            final var stream = client.openSse().toCompletableFuture().join();
             assertJsonEquals("""
                             {
                               "jsonrpc": "2.0",
                               "method": "notifications/message",
                               "params": {"level": "info", "logger": "demo", "data": "from the tool"}
                             }""",
-                    client.nextMessage(stream));
+                    client.nextMessage(stream).toCompletableFuture().join());
         }
     }
 
@@ -442,31 +442,28 @@ class DemoTest {
     void sampling(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
             client.initialize("""
-                    {"sampling": {}}""");
+                    {"sampling": {}}""").toCompletableFuture().join();
 
             // not awaited: the tool only returns once the client answered the sampling request
-            final var call = client.callAsync(2, "tools/call", """
+            final var call = client.call(2, "tools/call", """
                     {"name": "demo/ask", "arguments": {"question": "how are you?"}}""");
 
-            final var stream = client.openSse();
-            final var request = client.nextMessage(stream);
+            final var request = client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join();
             assertTrue(request.contains("\"method\":\"sampling/createMessage\""), request);
             assertTrue(request.contains("\"how are you?\""), request);
             assertTrue(request.contains("\"maxTokens\":512"), request);
 
-            final var requestId = requestId(request);
-            assertEquals(202, client.post("""
-                    {
-                      "jsonrpc": "2.0",
-                      "id": %d,
-                      "result": {
-                        "role": "assistant",
-                        "model": "test-model",
-                        "content": {"type": "text", "text": "fine, thanks!"}
-                      }
-                    }""".formatted(requestId)).statusCode());
+            final var response = client.respond(requestId(request), """
+                            {
+                              "role": "assistant",
+                              "model": "test-model",
+                              "content": {"type": "text", "text": "fine, thanks!"}
+                            }""")
+                    .toCompletableFuture()
+                    .join();
+            assertEquals(202, response.statusCode());
 
-            final var res = call.get(30, SECONDS);
+            final var res = call.toCompletableFuture().get(30, SECONDS);
             assertEquals(200, res.statusCode());
             assertJsonEquals("""
                             {
@@ -485,9 +482,9 @@ class DemoTest {
     @Test
     void samplingWithoutTheCapability(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize(); // no sampling capability
+            client.initialize().toCompletableFuture().join(); // no sampling capability
             final var res = client.call(2, "tools/call", """
-                    {"name": "demo/ask", "arguments": {"question": "how are you?"}}""");
+                    {"name": "demo/ask", "arguments": {"question": "how are you?"}}""").toCompletableFuture().join();
 
             assertTrue(res.body().contains("Client does not support 'sampling'"), res.body());
         }

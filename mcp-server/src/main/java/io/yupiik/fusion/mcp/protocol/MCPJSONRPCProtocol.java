@@ -170,9 +170,11 @@ public class MCPJSONRPCProtocol {
         // no-op: roots are always fetched on demand with MCPSession#listRoots so there is no cache to invalidate
     }
 
+    // note: it returns an empty result and not void because MCP defines it as a request - a void JSON-RPC method is
+    // seen as a notification by Fusion, so a client awaiting the response would wait forever
     @JsonRpc(value = "logging/setLevel", documentation = "Sets the minimum severity of the log records sent to the client.")
-    public void setLoggingLevel(@JsonRpcParam(required = true, documentation = "A syslog level name: debug, info, notice, warning, error, critical, alert or emergency.") final String level,
-                                final Request request) {
+    public Map<String, String> setLoggingLevel(@JsonRpcParam(required = true, documentation = "A syslog level name: debug, info, notice, warning, error, critical, alert or emergency.") final String level,
+                                               final Request request) {
         final LoggingLevel parsed;
         try {
             parsed = LoggingLevel.valueOf(level);
@@ -181,6 +183,7 @@ public class MCPJSONRPCProtocol {
                     "supported", Stream.of(LoggingLevel.values()).map(Enum::name).sorted().toList()), null);
         }
         sessions.of(request).setLoggingLevel(parsed);
+        return Map.of();
     }
 
     @JsonRpc(value = "tools/list", documentation = "Lists the tools the model can call.")
@@ -256,17 +259,20 @@ public class MCPJSONRPCProtocol {
                 .orElseThrow(() -> new JsonRpcException(-32002, "Unknown resource '" + uri + "'", Map.of("uri", uri), null));
     }
 
+    // both return an empty result and not void, see setLoggingLevel: MCP defines them as requests
     @JsonRpc(value = "resources/subscribe", documentation = "Asks to be notified when a resource changes.")
-    public void subscribeResource(@JsonRpcParam(required = true, documentation = "The resource uri to watch.") final String uri,
-                                 final Request request) {
+    public Map<String, String> subscribeResource(@JsonRpcParam(required = true, documentation = "The resource uri to watch.") final String uri,
+                                                 final Request request) {
         // no existence check: resources are dynamic, a client can legitimately watch a uri which does not exist yet
         sessions.of(request).subscribe(uri);
+        return Map.of();
     }
 
     @JsonRpc(value = "resources/unsubscribe", documentation = "Stops watching a resource.")
-    public void unsubscribeResource(@JsonRpcParam(required = true, documentation = "The resource uri to stop watching.") final String uri,
-                                   final Request request) {
+    public Map<String, String> unsubscribeResource(@JsonRpcParam(required = true, documentation = "The resource uri to stop watching.") final String uri,
+                                                  final Request request) {
         sessions.of(request).unsubscribe(uri);
+        return Map.of();
     }
 
     @JsonRpc(value = "completion/complete", documentation = "Suggests values for a prompt argument or a resource template variable.")

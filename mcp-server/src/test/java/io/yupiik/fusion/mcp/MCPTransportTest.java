@@ -18,7 +18,7 @@ package io.yupiik.fusion.mcp;
 import io.yupiik.fusion.mcp.api.MCPNotifier;
 import io.yupiik.fusion.mcp.protocol.MCPProtocol;
 import io.yupiik.fusion.mcp.model.LoggingLevel;
-import io.yupiik.fusion.mcp.testing.MCPClient;
+import io.yupiik.fusion.mcp.client.MCPClient;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
 import org.junit.jupiter.api.Test;
@@ -41,15 +41,15 @@ class MCPTransportTest {
     @Test
     void sessionLifecycle(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             final var session = client.session();
 
-            assertEquals(200, client.call(2, "ping", "{}").statusCode());
-            assertEquals(204, client.terminate().statusCode());
+            assertEquals(200, client.call(2, "ping", "{}").toCompletableFuture().join().statusCode());
+            assertEquals(204, client.terminate().toCompletableFuture().join().statusCode());
 
             // the session is gone, both a new call and a second delete must be rejected
-            assertEquals(404, client.call(3, "ping", "{}").statusCode());
-            assertEquals(404, client.terminate().statusCode());
+            assertEquals(404, client.call(3, "ping", "{}").toCompletableFuture().join().statusCode());
+            assertEquals(404, client.terminate().toCompletableFuture().join().statusCode());
             assertEquals(session, client.session());
         }
     }
@@ -63,7 +63,7 @@ class MCPTransportTest {
     @Test
     void unknownSessionIsRejected(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http).session("i-made-it-up")) {
-            final var res = client.call(1, "ping", "{}");
+            final var res = client.call(1, "ping", "{}").toCompletableFuture().join();
 
             assertEquals(404, res.statusCode());
             assertTrue(res.body().contains("Unknown or expired MCP session"), res.body());
@@ -74,8 +74,8 @@ class MCPTransportTest {
     void eachInitializeGetsItsOwnSession(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) throws Exception {
         try (final var first = new MCPClient(mcpEndpoint, http);
              final var second = new MCPClient(mcpEndpoint, http)) {
-            first.initialize();
-            second.initialize();
+            first.initialize().toCompletableFuture().join();
+            second.initialize().toCompletableFuture().join();
 
             assertNotEquals(first.session(), second.session());
         }
@@ -143,19 +143,18 @@ class MCPTransportTest {
     void logNotificationIsPushedOnSse(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http,
                                       @Fusion final MCPNotifier notifier) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
 
             // published before the stream is opened on purpose: messages are buffered per session
             notifier.log(LoggingLevel.warning, "test", "hello sse!");
 
-            final var stream = client.openSse();
             assertJsonEquals("""
                             {
                               "jsonrpc": "2.0",
                               "method": "notifications/message",
                               "params": {"level": "warning", "logger": "test", "data": "hello sse!"}
                             }""",
-                    client.nextMessage(stream));
+                    client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join());
         }
     }
 
@@ -163,15 +162,15 @@ class MCPTransportTest {
     void logNotificationIsFilteredByLevel(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http,
                                           @Fusion final MCPNotifier notifier) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
-            client.post("""
-                    {"jsonrpc": "2.0", "method": "logging/setLevel", "params": {"level": "error"}}""");
+            client.initialize().toCompletableFuture().join();
+            client.notify("logging/setLevel", """
+                    {"level": "error"}""").toCompletableFuture().join();
 
             notifier.log(LoggingLevel.debug, "test", "dropped");
             notifier.log(LoggingLevel.critical, "test", "kept");
 
-            final var stream = client.openSse();
-            assertTrue(client.nextMessage(stream).contains("\"kept\""));
+            final var message = client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join();
+            assertTrue(message.contains("\"kept\""), message);
         }
     }
 
@@ -179,13 +178,12 @@ class MCPTransportTest {
     void listChangedNotification(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http,
                                  @Fusion final MCPNotifier notifier) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
             notifier.toolListChanged();
 
-            final var stream = client.openSse();
             assertJsonEquals("""
-                    {"jsonrpc": "2.0", "method": "notifications/tools/list_changed", "params": {}}""",
-                    client.nextMessage(stream));
+                            {"jsonrpc": "2.0", "method": "notifications/tools/list_changed", "params": {}}""",
+                    client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join());
         }
     }
 
@@ -193,21 +191,20 @@ class MCPTransportTest {
     void resourceUpdatedOnlyGoesToSubscribers(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http,
                                               @Fusion final MCPNotifier notifier) throws Exception {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            client.initialize();
+            client.initialize().toCompletableFuture().join();
 
-            client.post("""
-                    {"jsonrpc": "2.0", "method": "resources/subscribe", "params": {"uri": "demo://greeting"}}""");
+            client.notify("resources/subscribe", """
+                    {"uri": "demo://greeting"}""").toCompletableFuture().join();
             notifier.resourceUpdated("demo://not-subscribed"); // dropped, the session does not watch it
             notifier.resourceUpdated("demo://greeting");
 
-            final var stream = client.openSse();
             assertJsonEquals("""
                             {
                               "jsonrpc": "2.0",
                               "method": "notifications/resources/updated",
                               "params": {"uri": "demo://greeting"}
                             }""",
-                    client.nextMessage(stream));
+                    client.openSse().thenCompose(client::nextMessage).toCompletableFuture().join());
         }
     }
 }

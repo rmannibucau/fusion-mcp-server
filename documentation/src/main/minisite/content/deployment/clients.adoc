@@ -1,0 +1,145 @@
+= Connecting a client
+:minisite-nav-prev-label: Transport
+:minisite-nav-prev-link: transport.html
+:minisite-nav-next-label: Internals
+:minisite-nav-next-link: ../internals/index.html
+
+This page is about the *end user* side: making a running server usable from a real MCP client, and understanding what
+the user and the model actually see.
+
+== Start a server
+
+[source,bash]
+----
+mvn package -pl demo exec:exec   # the demo of this repository, on http://localhost:8080/mcp
+----
+
+Any Fusion application embedding `fusion-mcp-server-impl` behaves the same, see xref:setup.adoc[Setup].
+
+== Claude Code
+
+[source,bash]
+----
+claude mcp add --transport http demo http://localhost:8080/mcp
+----
+
+or declare it in the project configuration:
+
+[source,json]
+----
+{
+  "mcpServers": {
+    "demo": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+----
+
+Then `/mcp` in the session lists the server, its tools and its prompts. A prompt shows up as a slash command, a
+resource can be attached with `@`.
+
+== Claude Desktop and other clients
+
+Same declaration, in the client configuration file (`claude_desktop_config.json` for Claude Desktop):
+
+[source,json]
+----
+{"mcpServers": {"demo": {"type": "http", "url": "http://localhost:8080/mcp"}}}
+----
+
+Clients which only support the stdio transport need a bridge - `npx mcp-remote http://localhost:8080/mcp` - since
+this server is HTTP only:
+
+[source,json]
+----
+{
+  "mcpServers": {
+    "demo": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:8080/mcp"]
+    }
+  }
+}
+----
+
+== MCP inspector
+
+The reference debugging UI, it lists everything the server exposes and lets you call it by hand:
+
+[source,bash]
+----
+npx @modelcontextprotocol/inspector
+----
+
+Pick the `Streamable HTTP` transport and `http://localhost:8080/mcp`. It is the fastest way to check a tool
+description and schema read well before letting a model use them.
+
+== By hand, with curl
+
+Everything is plain JSON-RPC over HTTP, so `curl` is enough to explore or to script a smoke test:
+
+[source,bash]
+----
+MCP=http://localhost:8080/mcp
+
+# initialize, keep the session id
+SID=$(curl -si -X POST $MCP -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+        "protocolVersion":"2025-06-18","capabilities":{},
+        "clientInfo":{"name":"curl","version":"1"}}}' \
+  | grep -i mcp-session-id | tr -d '\r' | cut -d' ' -f2)
+
+post() { curl -s -X POST $MCP -H 'content-type: application/json' -H "mcp-session-id: $SID" -d "$1"; }
+
+post '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+post '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+post '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"demo/greet","arguments":{"name":"fusion"}}}'
+post '{"jsonrpc":"2.0","id":4,"method":"resources/read","params":{"uri":"demo://greeting"}}'
+
+# watch what the server pushes
+curl -N $MCP -H 'accept: text/event-stream' -H "mcp-session-id: $SID"
+----
+
+== What the user sees
+
+[options="header",cols="1,3"]
+|===
+| Exposed as | User experience
+| Tool | invisible until the model decides to call it; the client then shows the tool name, the arguments and asks for a confirmation. The `description` is what drives that decision.
+| Prompt | an explicit entry - slash command, menu - with one input per argument, completed as the user types when a `MCPCompletions` bean answers.
+| Resource | something to attach to the conversation (`@` in most clients), listed by name and description.
+| Log record | in the client logs or its MCP panel, filtered by the level the user picked.
+| Sampling request | a confirmation dialog: the server is asking to use the user model, and possibly tokens.
+| Elicitation request | a form built from the requested schema.
+|===
+
+== Writing for a model
+
+The `description` and the argument documentation are the *interface* with the model. What works:
+
+* say what the tool does *and when to use it*: `"Returns the current stock of a product. Use it before promising a
+delivery date."`,
+* name the arguments after domain concepts, and document their format: `"ISO 4217 currency, EUR by default"`,
+* make failures actionable: `"unknown product id, list them with catalog/search"` beats a stack trace,
+* keep the tool set small and orthogonal; ten precise tools beat one tool with a `mode` argument.
+
+Check the result with the inspector or `tools/list`: what you read there is exactly what the model reads.
+
+== Troubleshooting
+
+[options="header",cols="1,2"]
+|===
+| Symptom | Cause
+| `404` with `Unknown or expired MCP session` | the session expired (`fusion.mcp.sessionTimeout`) or the server restarted; the client must `initialize` again.
+| `400` with `Unsupported mcp-protocol-version` | the client announces a version this server does not support, see xref:transport.adoc[Protocol negotiation].
+| A tool is missing from `tools/list` | the method is not annotated with `@MCPTool`, or incremental compilation hid it from the annotation processor - rebuild cleanly.
+| `-32602 Unknown tool` | the name is not a `@MCPTool` method; only annotated methods are callable.
+| The client receives no notification | it did not open the `GET /mcp` stream, or it does not send the session header back - see xref:transport.adoc[Stateless clients].
+| `Client does not support 'sampling'` | the client did not declare the capability in `initialize`; degrade gracefully, see xref:../mcp/server-to-client.adoc[Server to client].
+| A tool answers `isError: true` | the tool threw; this is by design so the model can react. The message is in the text content.
+|===
+
+Enable the access log (`fusion.http-server.accessLog=true`) to see the MCP traffic, and set the client log level to
+`debug` through `logging/setLevel` to get everything the server logs.

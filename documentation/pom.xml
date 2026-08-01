@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright (c) 2025 - present - Yupiik SAS - https://www.yupiik.com
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.yupiik.fusion.mcp</groupId>
+        <artifactId>fusion-mcp-server-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>fusion-mcp-server-documentation</artifactId>
+    <packaging>jar</packaging>
+    <name>Fusion MCP Server :: Documentation</name>
+    <description>Minisite of the project: end user guide and design notes.</description>
+
+    <properties>
+        <yupiik-tools.version>1.2.15</yupiik-tools.version>
+
+        <!-- nothing to deploy, the artifact only carries the asciidoc sources -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
+    <dependencies>
+        <dependency><!-- brings the ConfigurationDocumentationGenerator pre-action used below -->
+            <groupId>io.yupiik.fusion</groupId>
+            <artifactId>fusion-documentation</artifactId>
+            <version>${fusion.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency><!-- so the module is built after it and its generated configuration metadata is available -->
+            <groupId>io.yupiik.fusion.mcp</groupId>
+            <artifactId>fusion-mcp-server-impl</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <resources>
+            <resource><!-- potential reuse + warning free build -->
+                <directory>src/main/minisite</directory>
+            </resource>
+        </resources>
+
+        <plugins>
+            <!-- mvn -pl documentation yupiik-tools:serve-minisite -e   to write the doc with a live preview -->
+            <plugin>
+                <groupId>io.yupiik.maven</groupId>
+                <artifactId>yupiik-tools-maven-plugin</artifactId>
+                <version>${yupiik-tools.version}</version>
+                <configuration>
+                    <preferYupiikAsciidoc>true</preferYupiikAsciidoc>
+                    <siteBase>//yupiik.github.io/fusion-mcp-server</siteBase>
+                    <title>Fusion MCP Server documentation</title>
+                    <description>Expose a Yupiik Fusion application to any MCP client - tools are plain JSON-RPC
+                        methods.
+                    </description>
+                    <indexText>Fusion MCP Server</indexText>
+                    <indexSubTitle>A Model Context Protocol server built on the Yupiik Fusion JSON-RPC stack.
+                    </indexSubTitle>
+                    <logoText>Fusion MCP Server</logoText>
+                    <logoSideText>Documentation</logoSideText>
+                    <copyright>© 2026 &lt;strong&gt;&lt;a href="https://www.yupiik.com"&gt;Yupiik&lt;/a&gt;&lt;/strong&gt;.
+                        All Rights Reserved
+                    </copyright>
+                    <attributes>
+                        <partialsdir>${project.basedir}/src/main/minisite/content/_partials</partialsdir>
+                        <projectVersion>${project.version}</projectVersion>
+                        <fusionVersion>${fusion.version}</fusionVersion>
+                    </attributes>
+                    <templateExtensionPoints>
+                        <socialLinks>
+                            &lt;li class="list-inline-item"&gt;&lt;a title="Github" target="_blank"
+                            href="https://www.github.com/yupiik/fusion-mcp-server"&gt;&lt;i class="fab fa-github
+                            fa-fw"&gt;&lt;/i&gt;&lt;/a&gt;&lt;/li&gt;
+                        </socialLinks>
+                    </templateExtensionPoints>
+                    <preActions>
+                        <preAction>
+                            <!--
+                              generates content/_partials/generated/documentation.mcp.adoc from the @RootConfiguration
+                              metadata of MCPConfiguration, so the configuration reference can never drift.
+                              the source is pinned instead of scanned to only document our own keys - the classpath
+                              also carries the Fusion ones.
+                            -->
+                            <type>io.yupiik.fusion.documentation.ConfigurationDocumentationGenerator</type>
+                            <configuration>
+                                <module>mcp</module>
+                                <formatter>table</formatter>
+                                <includeEnvironmentNames>true</includeEnvironmentNames>
+                                <urls>
+                                    ${project.basedir}/../mcp-server/target/classes/META-INF/fusion/configuration/documentation.json
+                                </urls>
+                            </configuration>
+                        </preAction>
+                    </preActions>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>io.yupiik.maven</groupId>
+                        <artifactId>asciidoc-java</artifactId>
+                        <version>${yupiik-tools.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile><!-- by default refresh the generated content on any build but do not render the site -->
+            <id>generate-content-but-not-site</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.yupiik.maven</groupId>
+                        <artifactId>yupiik-tools-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>buildDoc</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>minisite</goal>
+                                </goals>
+                                <configuration>
+                                    <skipRendering>true</skipRendering>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile><!-- mvn clean package -Prender-site   then open documentation/target/fusion-mcp-server-documentation/index.html -->
+            <id>render-site</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.yupiik.maven</groupId>
+                        <artifactId>yupiik-tools-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>render</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>minisite</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile><!-- mvn clean package -Pgh-pages -->
+            <id>gh-pages</id>
+            <properties>
+                <minisite.serverId>github.com</minisite.serverId>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.yupiik.maven</groupId>
+                        <artifactId>yupiik-tools-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>gh-pages</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>minisite</goal>
+                                </goals>
+                                <configuration>
+                                    <git>
+                                        <ignore>false</ignore>
+                                        <noJekyll>true</noJekyll>
+                                        <serverId>${minisite.serverId}</serverId>
+                                        <branch>refs/heads/gh-pages</branch>
+                                        <url>https://github.com/yupiik/fusion-mcp-server.git</url>
+                                    </git>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
