@@ -17,6 +17,9 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * The argument being completed and what the user typed so far.
+ */
 @JsonModel
 public record CompletionArgument(
         String name, String value

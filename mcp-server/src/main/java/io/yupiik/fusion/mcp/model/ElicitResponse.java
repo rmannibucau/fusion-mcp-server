@@ -20,6 +20,9 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
 import java.util.Map;
 
+/**
+ * {@code elicitation/create} result, {@code content} is only set when {@code action == accept}.
+ */
 @JsonModel
 public record ElicitResponse(
         @JsonProperty("_meta") Metadata metadata,

@@ -20,12 +20,20 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/**
+ * Optional hints attached to a resource or a content block, they are advisory only.
+ *
+ * @param audience     who the annotated object is intended for.
+ * @param lastModified last modification date of the annotated object.
+ * @param priority     how important the annotated object is, between {@link #LEAST_IMPORTANT_PRIORITY}
+ *                     and {@link #MOST_IMPORTANT_PRIORITY}.
+ */
 @JsonModel
 public record Annotations(
         List<Role> audience,
         OffsetDateTime lastModified,
-        Integer priority // min=0, max=1
+        Double priority
 ) {
-    public static int MOST_IMPORTANT_PRIOTITY = 1;
-    public static int LEAST_IMPORTANT_PRIOTITY = 0;
+    public static final double MOST_IMPORTANT_PRIORITY = 1.;
+    public static final double LEAST_IMPORTANT_PRIORITY = 0.;
 }

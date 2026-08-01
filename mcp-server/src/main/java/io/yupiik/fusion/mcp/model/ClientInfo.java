@@ -18,6 +18,9 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * Identifies the client implementation, it is only informative.
+ */
 @JsonModel
 public record ClientInfo(
         String name,

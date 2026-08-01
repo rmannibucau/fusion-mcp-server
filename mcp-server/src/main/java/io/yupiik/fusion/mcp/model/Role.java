@@ -17,7 +17,10 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * Sender of a {@link SamplingMessage} or {@link PromptResponse.Message}.
+ */
 @JsonModel
 public enum Role {
-    user, assitant
+    user, assistant
 }

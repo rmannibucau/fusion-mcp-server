@@ -21,12 +21,17 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * The subset of the OpenRPC document the Fusion annotation processor generates in
+ * {@code META-INF/fusion/jsonrpc/openrpc.json} we need to describe MCP tools and prompts.
+ * <p>
+ * It is intentionally partial: only the attributes MCP maps to a tool/prompt descriptor are read.
+ */
 @JsonModel
 public record OpenRpc(
         Map<String, JsonSchema> schemas,
         Map<String, JsonRpcMethod> methods
 ) {
-    // note that result is also available but we do not map it until we do need it
     @JsonModel
     public record JsonRpcMethod(
             String name,
@@ -34,9 +39,17 @@ public record OpenRpc(
             List<Parameter> params,
             Result result
     ) {
+        /**
+         * @param name        the parameter name.
+         * @param description the {@code @JsonRpcParam} documentation, note that it is set on the parameter and not on
+         *                    its schema.
+         * @param schema      the parameter schema.
+         * @param required    whether the parameter is mandatory.
+         */
         @JsonModel
         public record Parameter(
                 String name,
+                String description,
                 JsonSchema schema,
                 Boolean required
         ) {}

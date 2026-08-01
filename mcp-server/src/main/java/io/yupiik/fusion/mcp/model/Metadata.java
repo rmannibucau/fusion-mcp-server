@@ -20,6 +20,10 @@ import io.yupiik.fusion.framework.build.api.json.JsonOthers;
 
 import java.util.Map;
 
+/**
+ * The MCP {@code _meta} attribute: a free form object, {@code others} captures everything but the
+ * reserved {@code name}/{@code title} attributes.
+ */
 @JsonModel
 public record Metadata(
         String name,

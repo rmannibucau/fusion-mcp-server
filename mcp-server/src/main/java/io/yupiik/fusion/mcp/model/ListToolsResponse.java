@@ -20,6 +20,10 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
 import java.util.List;
 
+/**
+ * {@code tools/list} result, it is computed from the JSON-RPC methods flagged with
+ * {@code io.yupiik.fusion.mcp.api.MCPTool}.
+ */
 @JsonModel
 public record ListToolsResponse(
         List<Tool> tools,

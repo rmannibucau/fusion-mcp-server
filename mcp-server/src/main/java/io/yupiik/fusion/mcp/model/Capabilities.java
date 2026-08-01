@@ -19,7 +19,17 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 import java.util.Map;
 
-// note: this is not complete, more for demo purposes
+/**
+ * The capabilities the client advertises in {@code initialize}.
+ * <p>
+ * They gate the server to client requests: sampling ({@code sampling/createMessage}), elicitation
+ * ({@code elicitation/create}) and roots ({@code roots/list}) are only usable when the client declared them.
+ *
+ * @param roots        set when the client exposes filesystem roots.
+ * @param sampling     set when the client can run a LLM completion for the server.
+ * @param elicitation  set when the client can ask its user for a structured input.
+ * @param experimental non standard capabilities.
+ */
 @JsonModel
 public record Capabilities(
         Roots roots,

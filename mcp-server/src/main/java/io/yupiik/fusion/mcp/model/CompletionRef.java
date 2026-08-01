@@ -17,6 +17,10 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * What is being completed: a prompt argument ({@code type=ref/prompt}) or a resource template
+ * variable ({@code type=ref/resource}).
+ */
 @JsonModel
 public record CompletionRef(
         String type, // ref/prompt or ref/resource

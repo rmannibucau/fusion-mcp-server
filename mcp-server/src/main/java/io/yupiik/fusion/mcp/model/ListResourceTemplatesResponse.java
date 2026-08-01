@@ -16,23 +16,15 @@
 package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
-import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
 import java.util.List;
 
+/**
+ * {@code resources/templates/list} result.
+ */
 @JsonModel
 public record ListResourceTemplatesResponse(
-        List<ResourceTemplate> resources,
+        List<ResourceTemplate> resourceTemplates,
         String nextCursor
 ) {
-    @JsonModel
-    public record ResourceTemplate(
-            @JsonProperty("_meta") Metadata metadata,
-            Annotations annotations,
-            String description,
-            String mimeType,
-            String name,
-            String title,
-            String uriTemplate
-    ) {}
 }

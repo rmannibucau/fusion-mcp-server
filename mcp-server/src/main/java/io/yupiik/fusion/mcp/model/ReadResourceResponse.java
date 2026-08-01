@@ -20,9 +20,15 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
 import java.util.List;
 
+/**
+ * {@code resources/read} result, a single uri can expand to several contents.
+ */
 @JsonModel
 public record ReadResourceResponse(
         @JsonProperty("_meta") Metadata metadata,
-        List<Resource> contents
+        List<ResourceContents> contents
 ) {
+    public static ReadResourceResponse of(final ResourceContents... contents) {
+        return new ReadResourceResponse(null, List.of(contents));
+    }
 }

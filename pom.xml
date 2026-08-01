@@ -35,8 +35,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.build.outputTimestamp>2025-08-08T09:32:46Z</project.build.outputTimestamp>
 
-        <fusion.version>1.0.29</fusion.version>
-        <tomcat.version>11.0.10</tomcat.version>
+        <fusion.version>1.0.38-SNAPSHOT</fusion.version>
+        <!-- keep it aligned with what fusion-http-server brings, else the servlet API would not match tomcat-catalina -->
+        <tomcat.version>11.0.24</tomcat.version>
         <yupiik-logging.version>1.0.8</yupiik-logging.version>
         <junit-jupiter.version>5.13.4</junit-jupiter.version>
     </properties>
@@ -70,6 +71,17 @@
                 <groupId>io.yupiik.fusion</groupId>
                 <artifactId>fusion-jsonrpc</artifactId>
                 <version>${fusion.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.yupiik.fusion</groupId>
+                <artifactId>fusion-http-server</artifactId>
+                <version>${fusion.version}</version>
+            </dependency>
+
+            <dependency><!-- used to tune the async timeout of the SSE stream, also needed at runtime by fusion-http-server -->
+                <groupId>org.apache.tomcat</groupId>
+                <artifactId>tomcat-servlet-api</artifactId>
+                <version>${tomcat.version}</version>
             </dependency>
 
             <dependency>
@@ -351,7 +363,7 @@ under the License.
                             </execution>
                         </executions>
                         <configuration>
-                            <source>21</source>
+                            <source>${maven.compiler.source}</source>
                             <doclint>none</doclint>
                             <encoding>UTF-8</encoding>
                             <failOnError>false</failOnError>

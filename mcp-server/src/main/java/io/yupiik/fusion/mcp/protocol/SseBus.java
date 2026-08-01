@@ -16,94 +16,241 @@
 package io.yupiik.fusion.mcp.protocol;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Deque;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.logging.Level.FINEST;
 import static java.util.logging.Level.SEVERE;
 
-// todo: enhance 1. the api 2. the thread safety and reactivity
+/**
+ * The {@code text/event-stream} body of a MCP session, i.e. the queue of the messages the server sends to the client.
+ * <p>
+ * Messages are buffered until the subscriber - the HTTP layer - requests them, so publishing never blocks and works
+ * even when no client is currently connected on {@code GET /mcp}: a tool can send a request and the client will get
+ * it as soon as it opens the stream. The last frames are also kept to be replayed when a client reconnects with a
+ * {@code Last-Event-ID} header, as the MCP streamable HTTP transport allows.
+ */
 public class SseBus implements Flow.Publisher<ByteBuffer> {
+    /**
+     * How many frames are kept for a {@code Last-Event-ID} resumption.
+     */
+    private static final int REPLAY_BUFFER_SIZE = 128;
+
+    private static final ByteBuffer KEEP_ALIVE = ByteBuffer.wrap(": ping\n\n".getBytes(UTF_8)).asReadOnlyBuffer();
+
+    private final Logger logger = Logger.getLogger(SseBus.class.getName());
+
     private final Lock lock = new ReentrantLock();
     private final AtomicLong pending = new AtomicLong();
-    private final Deque<String> messages = new ConcurrentLinkedDeque<>();
-    private Flow.Subscriber<? super ByteBuffer> sse;
+    private final AtomicLong lastEventId = new AtomicLong();
+    private final AtomicBoolean closed = new AtomicBoolean();
+    // serializes the emission, the HTTP layer calls request(1) from within onNext so drain() is re-entrant
+    private final AtomicInteger wip = new AtomicInteger();
+    private final Deque<Frame> frames = new ConcurrentLinkedDeque<>();
+    private final Deque<Frame> sent = new ConcurrentLinkedDeque<>();
+    private volatile Flow.Subscriber<? super ByteBuffer> subscriber;
 
-    public void publish(final String line) {
-        messages.add(line);
+    /**
+     * Queues a JSON-RPC message for the client.
+     *
+     * @param json the already serialized JSON-RPC request/notification.
+     * @return the identifier of the SSE event, i.e. what a client can resume from.
+     */
+    public long publish(final String json) {
+        final var frame = new Frame(lastEventId.incrementAndGet(), json);
+        frames.add(frame);
+        drain();
+        return frame.id();
     }
 
+    /**
+     * Queues a SSE comment, it keeps the connection - and any proxy in between - alive without being a message.
+     */
+    public void keepAlive() {
+        frames.add(Frame.KEEP_ALIVE_FRAME);
+        drain();
+    }
+
+    /**
+     * Re-queues the frames the client did not get.
+     *
+     * @param lastEventId the value of the {@code Last-Event-ID} header.
+     */
+    public void replayFrom(final long lastEventId) {
+        sent.stream()
+                .filter(it -> it.id() > lastEventId)
+                .toList()
+                .reversed()
+                .forEach(frames::addFirst);
+        drain();
+    }
+
+    /**
+     * @return the identifier of the last event which was queued.
+     */
+    public long lastEventId() {
+        return lastEventId.get();
+    }
+
+    /**
+     * Completes the stream, the client has to open a new one to get further messages.
+     */
     public void cancel() {
-        if (sse != null) {
-            sse.onComplete();
+        if (!closed.compareAndSet(false, true)) {
+            return;
         }
+        complete(subscriber);
+    }
+
+    /**
+     * @return {@code true} once {@link #cancel()} was called.
+     */
+    public boolean isClosed() {
+        return closed.get();
     }
 
     @Override
-    public void subscribe(final Flow.Subscriber<? super ByteBuffer> subscriber) {
+    public void subscribe(final Flow.Subscriber<? super ByteBuffer> newSubscriber) {
         lock.lock();
         try {
-            if (sse != null) {
-                try {
-                    sse.onComplete();
-                } catch (final RuntimeException re) {
-                    Logger.getLogger(getClass().getName()).log(SEVERE, re, re::getMessage);
-                }
-            }
-            sse = subscriber;
+            complete(subscriber); // at most one stream per session, the last one to connect wins
+            subscriber = newSubscriber;
+            pending.set(0);
         } finally {
             lock.unlock();
         }
-        subscriber.onSubscribe(new Flow.Subscription() {
+
+        newSubscriber.onSubscribe(new Flow.Subscription() {
             @Override
             public void request(final long n) {
-                try {
-                    pending.addAndGet(n);
-                    while (!messages.isEmpty() && pending.updateAndGet(p -> {
-                        if (p == Long.MAX_VALUE) {
-                            return 1;
-                        }
-                        if (p > 0) {
-                            return p - 1;
-                        }
-                        return -1;
-                    }) >= 0) {
-                        final var m = messages.pollFirst();
-                        if (m != null) { // todo: poolg
-                            subscriber.onNext(ByteBuffer.wrap(m.getBytes(StandardCharsets.UTF_8)));
-                        } else { // missed
-                            pending.incrementAndGet();
-                        }
-                    }
-                } catch (final RuntimeException re) {
-                    Logger.getLogger(getClass().getName()).log(SEVERE, re, re::getMessage);
-                    subscriber.onError(re);
+                if (n <= 0) {
+                    newSubscriber.onError(new IllegalArgumentException("Invalid request: " + n));
+                    return;
                 }
+                pending.updateAndGet(p -> p == Long.MAX_VALUE || n == Long.MAX_VALUE || p + n < 0 ? Long.MAX_VALUE : p + n);
+                drain();
             }
 
             @Override
             public void cancel() {
                 lock.lock();
                 try {
-                    final var ref = sse;
-                    if (ref != null) {
-                        sse = null;
-                        try {
-                            ref.onComplete();
-                        } catch (final RuntimeException re) {
-                            Logger.getLogger(getClass().getName()).log(SEVERE, re, re::getMessage);
-                        }
+                    if (subscriber == newSubscriber) {
+                        subscriber = null;
                     }
                 } finally {
                     lock.unlock();
                 }
             }
         });
+
+        if (closed.get()) {
+            complete(newSubscriber);
+        }
+    }
+
+    private void drain() {
+        if (wip.getAndIncrement() != 0) { // another thread is emitting, it will see our frame
+            return;
+        }
+        int missed = 1;
+        do {
+            emitWhilePossible();
+            missed = wip.addAndGet(-missed);
+        } while (missed != 0);
+    }
+
+    private void emitWhilePossible() {
+        while (!frames.isEmpty() && subscriber != null && pending.get() > 0) {
+            final var frame = frames.pollFirst();
+            if (frame == null) { // another thread was faster
+                continue;
+            }
+            if (pending.get() != Long.MAX_VALUE) {
+                pending.decrementAndGet();
+            }
+            if (frame.isReplayable()) {
+                track(frame);
+            }
+            emit(frame.toBuffer());
+        }
+    }
+
+    private void track(final Frame frame) {
+        sent.add(frame);
+        while (sent.size() > REPLAY_BUFFER_SIZE) {
+            sent.pollFirst();
+        }
+    }
+
+    private void emit(final ByteBuffer buffer) {
+        final var current = subscriber;
+        if (current == null) {
+            return;
+        }
+        try {
+            current.onNext(buffer);
+        } catch (final RuntimeException re) {
+            logger.log(SEVERE, re, re::getMessage);
+            forget(current);
+            try {
+                current.onError(re);
+            } catch (final RuntimeException nested) {
+                logger.log(FINEST, nested, nested::getMessage);
+            }
+        }
+    }
+
+    private void complete(final Flow.Subscriber<? super ByteBuffer> current) {
+        if (current == null) {
+            return;
+        }
+        forget(current);
+        try {
+            current.onComplete();
+        } catch (final RuntimeException re) {
+            logger.log(FINEST, re, re::getMessage);
+        }
+    }
+
+    private void forget(final Flow.Subscriber<? super ByteBuffer> current) {
+        lock.lock();
+        try {
+            if (subscriber == current) {
+                subscriber = null;
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // visible for testing
+    List<String> queued() {
+        return frames.stream().map(Frame::json).filter(java.util.Objects::nonNull).toList();
+    }
+
+    private record Frame(long id, String json) {
+        private static final Frame KEEP_ALIVE_FRAME = new Frame(-1, null);
+
+        private boolean isReplayable() {
+            return json != null;
+        }
+
+        private ByteBuffer toBuffer() {
+            if (json == null) {
+                return KEEP_ALIVE.duplicate();
+            }
+            // a serialized JSON-RPC message has no raw newline so a single data line is always enough
+            return ByteBuffer.wrap(("id: " + id + "\nevent: message\ndata: " + json + "\n\n").getBytes(UTF_8));
+        }
     }
 }
-

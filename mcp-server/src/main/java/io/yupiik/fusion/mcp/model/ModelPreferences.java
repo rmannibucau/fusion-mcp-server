@@ -19,6 +19,9 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 import java.util.List;
 
+/**
+ * How the client should pick the model of a sampling request, all priorities are between 0 and 1.
+ */
 @JsonModel
 public record ModelPreferences(
         Integer costPriority,

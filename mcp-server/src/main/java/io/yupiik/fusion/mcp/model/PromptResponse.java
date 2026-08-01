@@ -20,6 +20,11 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
 import java.util.List;
 
+/**
+ * {@code prompts/get} result, i.e. the messages a prompt expands to.
+ * <p>
+ * A JSON-RPC method flagged with {@code io.yupiik.fusion.mcp.api.MCPPrompt} must return this type.
+ */
 @JsonModel
 public record PromptResponse(
         @JsonProperty("_meta") Metadata metadata,

@@ -34,11 +34,9 @@
 
     <properties>
         <arthur.version>1.0.9</arthur.version>
-        <graalvm.version>21.0.2-graalce</graalvm.version>
-        <image.base>ossyupiik/java:21.0.8@sha256:f24ddb2bd8bf94e4f7f7fafb7a668689ba557dd28cc7a2c63ecd1bf9710cce90</image.base>
+        <graalvm.version>25.0.1</graalvm.version>
         <image.registry>ossyupiik</image.registry>
         <image.name>${image.registry}/fusion-mcp-server/${project.artifactId}:${project.version}</image.name>
-        <image.workdir>/opt/yupiik/${project.artifactId}</image.workdir>
     </properties>
 
     <dependencies>
@@ -113,8 +111,8 @@
                 <configuration>
                     <main>io.yupiik.fusion.framework.api.main.Launcher</main>
                     <usePackagedArtifact>true</usePackagedArtifact>
-                    <graalVersion>25.0.1</graalVersion>
-                    <graalDownloadUrl>https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-25.0.1/graalvm-community-jdk-25.0.1_linux-x64_bin.tar.gz</graalDownloadUrl>
+                    <graalVersion>${graalvm.version}</graalVersion>
+                    <graalDownloadUrl>https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-${graalvm.version}/graalvm-community-jdk-${graalvm.version}_linux-x64_bin.tar.gz</graalDownloadUrl>
                     <buildStaticImage>false</buildStaticImage>
                     <useLDD>true</useLDD>
                     <includeNatives>false</includeNatives>

@@ -17,6 +17,9 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * A model name - or name substring - the client should prefer for a sampling request.
+ */
 @JsonModel
 public record ModelHint(
         String name

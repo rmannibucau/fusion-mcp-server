@@ -17,6 +17,9 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * A single message of a sampling conversation.
+ */
 @JsonModel
 public record SamplingMessage(
         Role role,

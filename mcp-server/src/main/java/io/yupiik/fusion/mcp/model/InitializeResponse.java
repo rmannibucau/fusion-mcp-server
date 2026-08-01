@@ -19,6 +19,9 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 import java.util.Map;
 
+/**
+ * {@code initialize} result: the negotiated protocol version and what the server can do.
+ */
 @JsonModel
 public record InitializeResponse(
         String protocolVersion,

@@ -20,6 +20,9 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
 import java.util.List;
 
+/**
+ * {@code completion/complete} result, i.e. the argument value suggestions.
+ */
 @JsonModel
 public record CompleteResult(
         @JsonProperty("_meta") Metadata metadata,

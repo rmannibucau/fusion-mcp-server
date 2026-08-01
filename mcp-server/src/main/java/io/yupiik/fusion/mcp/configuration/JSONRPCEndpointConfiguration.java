@@ -18,6 +18,15 @@ package io.yupiik.fusion.mcp.configuration;
 import io.yupiik.fusion.framework.api.configuration.ConfigurationSource;
 import io.yupiik.fusion.framework.api.scope.DefaultScoped;
 
+/**
+ * Binds the Fusion JSON-RPC endpoint on {@code /mcp}, i.e. makes the MCP endpoint the default JSON-RPC one instead
+ * of {@code /jsonrpc}.
+ * <p>
+ * This is only a default: a {@code ConfigurationSource} with a higher priority - or a
+ * {@code -Dfusion.jsonrpc.binding=/jsonrpc} - overrides it, which is what to do to <em>also</em> expose the
+ * JSON-RPC API as a plain JSON-RPC endpoint. The MCP transport itself stays on {@code /mcp} in all cases, see
+ * {@link io.yupiik.fusion.mcp.protocol.MCPEndpoint}.
+ */
 @DefaultScoped
 public class JSONRPCEndpointConfiguration implements ConfigurationSource {
     @Override

@@ -19,6 +19,9 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 import java.util.Map;
 
+/**
+ * The arguments already resolved when completing another one, it enables dependent completions.
+ */
 @JsonModel
 public record CompletionContext(Map<String, String> arguments) {
 }

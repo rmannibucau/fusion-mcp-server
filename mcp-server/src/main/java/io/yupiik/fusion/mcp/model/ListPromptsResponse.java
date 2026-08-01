@@ -20,6 +20,10 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
 import java.util.List;
 
+/**
+ * {@code prompts/list} result, it is computed from the JSON-RPC methods flagged with
+ * {@code io.yupiik.fusion.mcp.api.MCPPrompt}.
+ */
 @JsonModel
 public record ListPromptsResponse(
         List<Prompt> prompts,

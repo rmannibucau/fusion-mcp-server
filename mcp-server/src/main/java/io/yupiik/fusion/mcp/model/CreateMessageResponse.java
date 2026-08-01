@@ -18,6 +18,9 @@ package io.yupiik.fusion.mcp.model;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
+/**
+ * {@code sampling/createMessage} result, i.e. what the client LLM answered.
+ */
 @JsonModel
 public record CreateMessageResponse(
         @JsonProperty("_meta") Metadata metadata,

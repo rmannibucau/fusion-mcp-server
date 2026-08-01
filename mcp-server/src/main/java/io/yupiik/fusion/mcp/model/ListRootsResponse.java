@@ -20,6 +20,9 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
 import java.util.List;
 
+/**
+ * {@code roots/list} result, i.e. the filesystem locations the client gives access to.
+ */
 @JsonModel
 public record ListRootsResponse(
         @JsonProperty("_meta") Metadata metadata,

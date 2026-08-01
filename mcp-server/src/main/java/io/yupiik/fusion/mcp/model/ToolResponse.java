@@ -20,15 +20,51 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 import io.yupiik.fusion.json.JsonMapper;
 
 import java.util.List;
+import java.util.stream.Stream;
 
+/**
+ * {@code tools/call} result.
+ * <p>
+ * A tool can return this type directly to control the content blocks it sends back, else the JSON-RPC method
+ * result is wrapped with {@link #structure(JsonMapper, Object)}.
+ *
+ * @param metadata          optional {@code _meta}.
+ * @param isError           {@code true} when the tool execution failed - the model is expected to see the error.
+ * @param content           the content blocks, they are what a model without structured output support reads.
+ * @param structuredContent the structured result, it must match the tool {@code outputSchema} when there is one.
+ */
 @JsonModel
 public record ToolResponse(
         @JsonProperty("_meta") Metadata metadata,
         boolean isError,
         List<Content> content,
-        Object structuredContent // must be a JSON object
+        Object structuredContent
 ) {
+    /**
+     * Wraps a JSON-RPC result as a tool response, the JSON representation is sent as text content - for models
+     * without structured output support - and as {@code structuredContent}.
+     *
+     * @param jsonMapper the mapper used to render {@code data}.
+     * @param data       the tool result.
+     * @return the matching tool response.
+     */
     public static ToolResponse structure(final JsonMapper jsonMapper, final Object data) {
         return new ToolResponse(null, false, List.of(Content.text(jsonMapper.toString(data))), data);
+    }
+
+    /**
+     * @param text the text content blocks.
+     * @return a successful text only tool response.
+     */
+    public static ToolResponse text(final String... text) {
+        return new ToolResponse(null, false, Stream.of(text).map(Content::text).toList(), null);
+    }
+
+    /**
+     * @param message the error message the model will see.
+     * @return a failed tool response - {@code isError=true}.
+     */
+    public static ToolResponse error(final String message) {
+        return new ToolResponse(null, true, List.of(Content.text(message)), null);
     }
 }

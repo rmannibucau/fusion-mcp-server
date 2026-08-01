@@ -21,6 +21,18 @@ import java.util.List;
 import java.util.Map;
 
 // sampling/createMessage params
+/**
+ * {@code sampling/createMessage} parameters, i.e. a LLM completion the server asks the client to run.
+ *
+ * @param includeContext   which servers context the client should add to the prompt.
+ * @param maxTokens        the maximum amount of tokens to generate, it is required.
+ * @param messages         the conversation to complete, it is required.
+ * @param metadata         provider specific parameters.
+ * @param modelPreferences how to select the model.
+ * @param stopSequences    sequences stopping the generation.
+ * @param systemPrompt     the system prompt the client may use.
+ * @param temperature      the sampling temperature.
+ */
 @JsonModel
 public record CreateSamplingMessageParameters(
         SamplingServer includeContext,
