@@ -93,7 +93,8 @@ class MCPSessionsTest {
 
     @Test
     void idleSessionsAreDropped(@Fusion final JsonMapper jsons) throws Exception {
-        // one second is the finest a configuration can express, so this test does sleep
+        // one second is the finest a configuration can express, so this test does sleep - it is the only one of the
+        // class which does, the eviction logging is asserted here too instead of sleeping twice
         final var registry = sessions(jsons, 1);
         final var expiring = registry.create();
         final var stale = registry.create();
@@ -106,7 +107,7 @@ class MCPSessionsTest {
         assertTrue(expiring.sse().isClosed(), "and its channel is released");
 
         // ...and creating a new one evicts the remaining ones, so no background thread is needed
-        registry.create();
+        Loggers.atFinest(MCPSessions.class, registry::create);
         assertFalse(registry.sessions().contains(stale));
         assertTrue(stale.sse().isClosed());
     }
@@ -176,17 +177,13 @@ class MCPSessionsTest {
     }
 
     @Test
-    void whatIsDroppedAndEvictedIsLogged(@Fusion final JsonMapper jsons) throws Exception {
-        final var registry = sessions(jsons, 1);
+    void whatIsDroppedIsLogged(@Fusion final JsonMapper jsons) {
+        final var registry = sessions(jsons, 1800);
         final var dropped = registry.create();
-        final var expiring = registry.create();
 
         Loggers.atFinest(MCPSessions.class, () -> assertTrue(registry.drop(dropped.id())));
 
-        Thread.sleep(1_100);
-        Loggers.atFinest(MCPSessions.class, registry::evictExpired);
-
-        assertFalse(registry.sessions().contains(expiring));
+        assertTrue(registry.sessions().isEmpty());
     }
 
     private MCPSessions sessions(final JsonMapper jsons, final int sessionTimeout) {

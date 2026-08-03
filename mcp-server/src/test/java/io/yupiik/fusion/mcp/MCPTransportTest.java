@@ -20,6 +20,7 @@ import static java.net.http.HttpResponse.BodyHandlers.ofString;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -458,7 +459,8 @@ class MCPTransportTest {
     void theStreamCanBeOpenedBeforeInitialize(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http)
             throws Exception {
         // no session header at all: the client gets a valid - but silent - stream, which is what a client opening
-        // the channel before initialize asks for
+        // the channel before initialize asks for. Such a stream belongs to an unregistered session so nothing can
+        // complete it server side, the web server releases it when it stops - see Fusion FusionServlet.
         final var response = http.sendAsync(
                         HttpRequest.newBuilder(mcpEndpoint)
                                 .GET()
@@ -468,14 +470,15 @@ class MCPTransportTest {
                 .toCompletableFuture()
                 .get(10, SECONDS);
 
-        assertEquals(200, response.statusCode());
-        assertEquals(
-                "text/event-stream;charset=utf-8",
-                response.headers().firstValue("content-type").orElseThrow());
-
-        // such a stream is bound to an unregistered session, so only the client can end it: it must be closed here,
-        // else the server keeps the async request open until it shuts down
-        response.body().close();
+        // the body is closed whatever happens: the shared HttpClient is closed with the container and it awaits its
+        // pending operations, so an open response stream would block that shutdown
+        try (final var body = response.body()) {
+            assertEquals(200, response.statusCode());
+            assertEquals(
+                    "text/event-stream;charset=utf-8",
+                    response.headers().firstValue("content-type").orElseThrow());
+            assertNotNull(body);
+        }
     }
 
     /**

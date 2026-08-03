@@ -33,6 +33,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A minimal MCP client for the streamable HTTP transport: it drives a MCP server, which is what testing your own
@@ -198,7 +199,7 @@ public class MCPClient implements AutoCloseable {
      * @return an iterator on the raw SSE lines.
      */
     public CompletionStage<Iterator<String>> openSse(final String lastEventId) {
-        close(); // at most one stream at a time, else the abandoned one is written to until the socket breaks
+        closeStream(); // at most one stream at a time, else the abandoned one is written to until the socket breaks
 
         final var builder = HttpRequest.newBuilder(endpoint).GET().header("accept", "text/event-stream");
         if (lastEventId != null) {
@@ -255,8 +256,36 @@ public class MCPClient implements AutoCloseable {
         return http.sendAsync(builder.build(), ofString());
     }
 
+    /**
+     * Abandons the SSE stream then ends the session with {@link #terminate()} when there is one, i.e. the client
+     * leaves nothing behind: the server releases the session and completes its channel.
+     * <p>
+     * A failing {@code DELETE} is ignored - the session can legitimately be gone already, and the server can even be
+     * stopped - so closing is always safe.
+     */
     @Override
     public void close() {
+        closeStream();
+        if (session != null) {
+            try {
+                // reads the session header so it must run before dropping it, and it is bounded: a client must not
+                // hang on a server which is gone
+                terminate()
+                        .toCompletableFuture()
+                        .orTimeout(30, TimeUnit.SECONDS)
+                        .join();
+            } catch (final RuntimeException re) {
+                // nothing to recover: the session is being dropped anyway
+            } finally {
+                session = null;
+            }
+        }
+    }
+
+    /**
+     * Abandons the SSE stream, if any, without touching the session - reopening one keeps working.
+     */
+    private void closeStream() {
         final var current = sse;
         if (current != null) {
             sse = null;
