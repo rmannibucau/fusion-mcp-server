@@ -17,7 +17,6 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
-
 import java.util.Map;
 
 /**
@@ -26,5 +25,4 @@ import java.util.Map;
 @JsonModel
 public record CompletionContext(
         @Property(documentation = "The arguments already resolved, by name, to enable dependent completions.")
-        Map<String, String> arguments) {
-}
+        Map<String, String> arguments) {}

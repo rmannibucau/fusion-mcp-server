@@ -27,6 +27,4 @@ public record CompletionArgument(
         String name,
 
         @Property(documentation = "What the user typed so far, possibly empty.")
-        String value
-) {
-}
+        String value) {}

@@ -18,7 +18,6 @@ package io.yupiik.fusion.mcp.model;
 import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
-
 import java.util.List;
 
 /**
@@ -26,19 +25,19 @@ import java.util.List;
  */
 @JsonModel
 public record CompleteResult(
-        @Property(documentation = "Optional free form metadata.")
-        @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
         @Property(documentation = "The suggestions for the argument being completed.")
-        Completion completion
-) {
+        Completion completion) {
     @JsonModel
     public record Completion(
             @Property(documentation = "Set when more values exist than the ones returned.")
             boolean hasMore,
+
             @Property(documentation = "Total amount of matching values.")
             int total,
+
             @Property(documentation = "The suggested values, at most 100.")
-            List<String> values
-    ) {
-    }
+            List<String> values) {}
 }

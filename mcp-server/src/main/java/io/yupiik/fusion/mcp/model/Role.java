@@ -22,5 +22,6 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
  */
 @JsonModel
 public enum Role {
-    user, assistant
+    user,
+    assistant
 }

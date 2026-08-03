@@ -25,5 +25,4 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 @JsonModel
 public record Demo(
         @Property(documentation = "The greeting sentence, ready to be shown to the user.")
-        String greeting) {
-}
+        String greeting) {}

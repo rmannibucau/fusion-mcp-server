@@ -45,16 +45,23 @@ public record MCPConfiguration(
         @Property(defaultValue = "\"1.0.0\"", documentation = "Server version.")
         String version,
 
-        @Property(defaultValue = "\"Use the exposed tools to answer the user.\"", documentation = "Instructions sent to the client/model.")
+        @Property(
+                defaultValue = "\"Use the exposed tools to answer the user.\"",
+                documentation = "Instructions sent to the client/model.")
         String instructions,
 
-        @Property(defaultValue = "1800", documentation = "Session idle timeout in seconds, 0 to disable the expiration.")
+        @Property(
+                defaultValue = "1800",
+                documentation = "Session idle timeout in seconds, 0 to disable the expiration.")
         int sessionTimeout,
 
-        @Property(defaultValue = "30", documentation = "Timeout, in seconds, of the requests sent to the client (sampling, elicitation, roots).")
+        @Property(
+                defaultValue = "30",
+                documentation =
+                        "Timeout, in seconds, of the requests sent to the client (sampling, elicitation, roots).")
         int clientRequestTimeout,
 
-        @Property(defaultValue = "false", documentation = "Should a valid Mcp-Session-Id header be mandatory once the session was created.")
-        boolean requireSession
-) {
-}
+        @Property(
+                defaultValue = "false",
+                documentation = "Should a valid Mcp-Session-Id header be mandatory once the session was created.")
+        boolean requireSession) {}

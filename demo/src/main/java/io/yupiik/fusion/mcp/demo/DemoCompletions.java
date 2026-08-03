@@ -21,7 +21,6 @@ import io.yupiik.fusion.mcp.model.CompleteResult;
 import io.yupiik.fusion.mcp.model.CompletionArgument;
 import io.yupiik.fusion.mcp.model.CompletionContext;
 import io.yupiik.fusion.mcp.model.CompletionRef;
-
 import java.util.List;
 
 /**
@@ -32,8 +31,8 @@ public class DemoCompletions implements MCPCompletions {
     private static final List<String> CODES = List.of("fusion", "mcp", "yupiik");
 
     @Override
-    public CompleteResult.Completion complete(final CompletionRef ref, final CompletionArgument argument,
-                                              final CompletionContext context) {
+    public CompleteResult.Completion complete(
+            final CompletionRef ref, final CompletionArgument argument, final CompletionContext context) {
         if (!"ref/prompt".equals(ref.type()) || !"demo/prompt".equals(ref.name()) || !"code".equals(argument.name())) {
             return null; // not for us, another implementation - or the empty default - will handle it
         }

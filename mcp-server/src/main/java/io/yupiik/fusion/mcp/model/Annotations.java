@@ -17,7 +17,6 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
-
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -33,11 +32,12 @@ import java.util.List;
 public record Annotations(
         @Property(documentation = "Who the annotated object is intended for.")
         List<Role> audience,
+
         @Property(documentation = "When the annotated object was modified for the last time, ISO-8601.")
         OffsetDateTime lastModified,
+
         @Property(documentation = "How important the annotated object is, from 0 (least) to 1 (most).")
-        Double priority
-) {
+        Double priority) {
     public static final double MOST_IMPORTANT_PRIORITY = 1.;
     public static final double LEAST_IMPORTANT_PRIORITY = 0.;
 }

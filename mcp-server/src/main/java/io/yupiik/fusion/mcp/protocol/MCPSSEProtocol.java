@@ -15,19 +15,18 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
+import static io.yupiik.fusion.mcp.protocol.MCPProtocol.LAST_EVENT_ID_HEADER;
+import static io.yupiik.fusion.mcp.protocol.MCPProtocol.SESSION_HEADER;
+import static java.util.concurrent.CompletableFuture.completedFuture;
+import static java.util.logging.Level.FINE;
+
 import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 import io.yupiik.fusion.framework.build.api.http.HttpMatcher;
 import io.yupiik.fusion.http.server.api.Request;
 import io.yupiik.fusion.http.server.api.Response;
 import jakarta.servlet.http.HttpServletRequest;
-
 import java.util.concurrent.CompletionStage;
 import java.util.logging.Logger;
-
-import static io.yupiik.fusion.mcp.protocol.MCPProtocol.LAST_EVENT_ID_HEADER;
-import static io.yupiik.fusion.mcp.protocol.MCPProtocol.SESSION_HEADER;
-import static java.util.concurrent.CompletableFuture.completedFuture;
-import static java.util.logging.Level.FINE;
 
 /**
  * The {@code GET /mcp} and {@code DELETE /mcp} halves of the MCP streamable HTTP transport:

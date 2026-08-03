@@ -15,6 +15,15 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
+import static io.yupiik.fusion.testing.assertion.JsonAsserts.assertJsonEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.jsonrpc.JsonRpcException;
 import io.yupiik.fusion.mcp.model.Capabilities;
@@ -23,17 +32,18 @@ import io.yupiik.fusion.mcp.model.Content;
 import io.yupiik.fusion.mcp.model.CreateMessageResponse;
 import io.yupiik.fusion.mcp.model.CreateSamplingMessageParameters;
 import io.yupiik.fusion.mcp.model.ElicitRequestParameters;
+import io.yupiik.fusion.mcp.model.ElicitResponse;
 import io.yupiik.fusion.mcp.model.JsonSchema;
+import io.yupiik.fusion.mcp.model.ListRootsResponse;
 import io.yupiik.fusion.mcp.model.LoggingLevel;
 import io.yupiik.fusion.mcp.model.MessageNotification;
 import io.yupiik.fusion.mcp.model.ProgressNotification;
 import io.yupiik.fusion.mcp.model.ResourceUpdatedNotification;
 import io.yupiik.fusion.mcp.model.Role;
 import io.yupiik.fusion.mcp.model.SamplingMessage;
+import io.yupiik.fusion.mcp.test.Loggers;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
-import org.junit.jupiter.api.Test;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -41,13 +51,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import static io.yupiik.fusion.testing.assertion.JsonAsserts.assertJsonEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 /**
  * The session, unit tested: what it queues on the SSE channel and how it correlates the client answers.
@@ -77,8 +81,7 @@ class MCPSessionTest {
         session.notify("notifications/custom", Map.of("a", "b"));
 
         assertJsonEquals("""
-                        {"jsonrpc": "2.0", "method": "notifications/custom", "params": {"a": "b"}}""",
-                session.sse().queued().get(0));
+                        {"jsonrpc": "2.0", "method": "notifications/custom", "params": {"a": "b"}}""", session.sse().queued().get(0));
     }
 
     @Test
@@ -141,8 +144,10 @@ class MCPSessionTest {
     void elicitationNeedsTheClientCapability(@Fusion final JsonMapper jsons) {
         final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
 
-        final var error = assertThrows(JsonRpcException.class, () -> session.elicit(new ElicitRequestParameters(
-                "which one?", JsonSchema.object(null, Map.of("a", JsonSchema.bool(null)), List.of("a")))));
+        final var error = assertThrows(
+                JsonRpcException.class,
+                () -> session.elicit(new ElicitRequestParameters(
+                        "which one?", JsonSchema.object(null, Map.of("a", JsonSchema.bool(null)), List.of("a")))));
 
         assertTrue(error.getMessage().contains("elicitation"), error.getMessage());
     }
@@ -168,10 +173,13 @@ class MCPSessionTest {
         assertTrue(request.contains("\"id\":1"), request);
         assertFalse(promise.isDone(), "the request is pending until the client answers");
 
-        assertTrue(session.onClientResponse(1, Map.of(
-                "role", "assistant",
-                "model", "test-model",
-                "content", Map.of("type", "text", "text", "hello")), null));
+        assertTrue(session.onClientResponse(
+                1,
+                Map.of(
+                        "role", "assistant",
+                        "model", "test-model",
+                        "content", Map.of("type", "text", "text", "hello")),
+                null));
 
         final var response = promise.get(5, TimeUnit.SECONDS);
         assertInstanceOf(CreateMessageResponse.class, response);
@@ -244,11 +252,158 @@ class MCPSessionTest {
     void anyRequestCanBeSent(@Fusion final JsonMapper jsons) throws Exception {
         final var session = session(jsons);
 
-        final var promise = session.request("custom/thing", Map.of("a", 1), Map.class).toCompletableFuture();
+        final var promise =
+                session.request("custom/thing", Map.of("a", 1), Map.class).toCompletableFuture();
 
         assertTrue(session.sse().queued().get(0).contains("\"method\":\"custom/thing\""));
         session.onClientResponse(1, Map.of("ok", true), null);
         assertEquals(Map.of("ok", true), promise.get(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void aNegativeTimeoutDisablesTheExpirationToo(@Fusion final JsonMapper jsons) throws Exception {
+        final var session = session(jsons);
+        Thread.sleep(20);
+
+        assertFalse(session.isExpired(Duration.ofMillis(-1)));
+    }
+
+    @Test
+    void aLogRecordWithoutALevelIsAlwaysSent(@Fusion final JsonMapper jsons) {
+        final var session = session(jsons);
+        session.setLoggingLevel(LoggingLevel.emergency); // the least verbose level there is
+
+        session.log(new MessageNotification("demo", null, "no level, no filtering"));
+
+        assertEquals(1, session.sse().queued().size());
+    }
+
+    @Test
+    void setLoggingLevelFallsBackOnTheDefault(@Fusion final JsonMapper jsons) {
+        final var session = session(jsons);
+        session.setLoggingLevel(LoggingLevel.debug);
+
+        session.setLoggingLevel(null);
+
+        assertEquals(LoggingLevel.info, session.loggingLevel());
+    }
+
+    @Test
+    void clientRequestsNeedAnInitializedSession(@Fusion final JsonMapper jsons) {
+        // no initialize at all, so there is no declared capability to check against
+        final var session = session(jsons);
+
+        assertEquals(
+                -32601,
+                assertThrows(JsonRpcException.class, () -> session.createMessage(sampling()))
+                        .code());
+        assertEquals(
+                -32601,
+                assertThrows(JsonRpcException.class, () -> session.elicit(elicitation()))
+                        .code());
+        assertEquals(
+                -32601, assertThrows(JsonRpcException.class, session::listRoots).code());
+        // the client name is sent back when it is known, "?" otherwise
+        assertEquals(
+                "?",
+                ((Map<?, ?>) assertThrows(JsonRpcException.class, session::listRoots)
+                                .data())
+                        .get("client"));
+    }
+
+    @Test
+    void elicitationIsCorrelatedWithTheClientResponse(@Fusion final JsonMapper jsons) throws Exception {
+        final var session = initialized(jsons, new Capabilities(null, null, Map.of(), null));
+
+        final var promise = session.elicit(elicitation()).toCompletableFuture();
+
+        assertTrue(session.sse().queued().getFirst().contains("\"method\":\"elicitation/create\""));
+        session.onClientResponse(1, Map.of("action", "accept", "content", Map.of("confirm", true)), null);
+
+        final var response = promise.get(5, TimeUnit.SECONDS);
+        assertEquals(ElicitResponse.Action.accept, response.action());
+        assertEquals(Map.of("confirm", true), response.content());
+    }
+
+    @Test
+    void rootsAreFetchedOnDemand(@Fusion final JsonMapper jsons) throws Exception {
+        final var session = initialized(jsons, new Capabilities(new Capabilities.Roots(true), null, null, null));
+
+        final var promise = session.listRoots().toCompletableFuture();
+
+        assertTrue(session.sse().queued().getFirst().contains("\"method\":\"roots/list\""));
+        session.onClientResponse(1, Map.of("roots", List.of(Map.of("uri", "file:///tmp", "name", "tmp"))), null);
+
+        assertEquals(
+                List.of("file:///tmp"),
+                promise.get(5, TimeUnit.SECONDS).roots().stream()
+                        .map(ListRootsResponse.Root::uri)
+                        .toList());
+    }
+
+    @Test
+    void aResponseAlreadyOfTheExpectedTypeIsNotReserialized(@Fusion final JsonMapper jsons) throws Exception {
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var promise = session.createMessage(sampling()).toCompletableFuture();
+        final var answer = new CreateMessageResponse(null, Content.text("hi"), "a-model", Role.assistant, null);
+
+        session.onClientResponse(1, answer, null);
+
+        assertSame(answer, promise.get(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void anEmptyClientResponseIsNull(@Fusion final JsonMapper jsons) throws Exception {
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var promise = session.createMessage(sampling()).toCompletableFuture();
+
+        // a client answering {"id": 1, "result": null}
+        session.onClientResponse(1, null, null);
+
+        assertNull(promise.get(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void aMalformedClientErrorFallsBackOnDefaults(@Fusion final JsonMapper jsons) {
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var promise = session.createMessage(sampling()).toCompletableFuture();
+
+        // neither a numeric code nor a message, which the specification requires but a client may still send
+        session.onClientResponse(1, null, Map.of("code", "not-a-number"));
+
+        final var cause = assertInstanceOf(
+                JsonRpcException.class,
+                assertThrows(CompletionException.class, promise::join).getCause());
+        assertEquals(-32603, cause.code());
+        assertEquals("Client error", cause.getMessage());
+    }
+
+    @Test
+    void aResponseToAnUnknownRequestIsLoggedAndIgnored(@Fusion final JsonMapper jsons) {
+        final var session = session(jsons);
+
+        Loggers.atFinest(MCPSession.class, () -> assertFalse(session.onClientResponse(404, Map.of(), null)));
+    }
+
+    @Test
+    void aRequestWhichCannotBeSerializedIsNotLeftPending(@Fusion final JsonMapper jsons) {
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+
+        // an unserializable payload: the request must not stay in the pending map, else close() would report it
+        assertThrows(RuntimeException.class, () -> session.request("custom/thing", new Unserializable(), Map.class));
+
+        session.close();
+        assertTrue(session.sse().isClosed());
+    }
+
+    /**
+     * A type no JSON codec knows, i.e. what a caller passing the wrong payload sends.
+     */
+    private static final class Unserializable {}
+
+    private ElicitRequestParameters elicitation() {
+        return new ElicitRequestParameters(
+                "which one?", JsonSchema.object(null, Map.of("confirm", JsonSchema.bool(null)), List.of("confirm")));
     }
 
     private MCPSession session(final JsonMapper jsons) {
@@ -263,7 +418,6 @@ class MCPSessionTest {
 
     private CreateSamplingMessageParameters sampling() {
         return new CreateSamplingMessageParameters(
-                null, 16, List.of(new SamplingMessage(Role.user, Content.text("hi"))),
-                null, null, null, null, null);
+                null, 16, List.of(new SamplingMessage(Role.user, Content.text("hi"))), null, null, null, null, null);
     }
 }

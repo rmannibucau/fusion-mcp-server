@@ -17,7 +17,6 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
-
 import java.util.List;
 import java.util.Map;
 
@@ -38,19 +37,23 @@ import java.util.Map;
 public record CreateSamplingMessageParameters(
         @Property(documentation = "Which servers context the client should add to the prompt.")
         SamplingServer includeContext,
+
         @Property(documentation = "Maximum amount of tokens to generate, mandatory.")
         Integer maxTokens,
+
         @Property(documentation = "The conversation to complete, mandatory.")
         List<SamplingMessage> messages,
+
         @Property(documentation = "Provider specific parameters.")
         Map<String, Object> metadata,
+
         @Property(documentation = "How the client should select the model.")
         ModelPreferences modelPreferences,
+
         @Property(documentation = "Sequences stopping the generation.")
         List<String> stopSequences,
+
         @Property(documentation = "System prompt the client may use.")
         String systemPrompt,
-        @Property(documentation = "Sampling temperature.")
-        Double temperature
-) {
-}
+
+        @Property(documentation = "Sampling temperature.") Double temperature) {}

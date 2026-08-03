@@ -15,10 +15,13 @@
  */
 package io.yupiik.fusion.mcp.service;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Objects.requireNonNull;
+import static java.util.Optional.ofNullable;
+
 import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.mcp.model.fusion.OpenRpc;
-
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.HashMap;
@@ -26,10 +29,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.Objects.requireNonNull;
-import static java.util.Optional.ofNullable;
 
 /**
  * Reads the OpenRPC documents the Fusion annotation processor generates and flattens their {@code $ref}s since
@@ -67,8 +66,10 @@ public class OpenRpcService {
         try {
             final var documents = loader.getResources(OPENRPC_LOCATION);
             while (documents.hasMoreElements()) {
-                try (final var in = new InputStreamReader(documents.nextElement().openStream(), UTF_8)) {
-                    final var document = requireNonNull(jsons.read(OpenRpc.class, in), () -> "Empty " + OPENRPC_LOCATION);
+                try (final var in =
+                        new InputStreamReader(documents.nextElement().openStream(), UTF_8)) {
+                    final var document =
+                            requireNonNull(jsons.read(OpenRpc.class, in), () -> "Empty " + OPENRPC_LOCATION);
                     if (document.schemas() != null) {
                         schemas.putAll(document.schemas());
                     }
@@ -108,14 +109,17 @@ public class OpenRpcService {
      * @param schema the schema to resolve.
      * @return the resolved schema or {@code null} when there was nothing to inline.
      */
-    public OpenRpc.JsonSchema resolveRefs(final Map<String, OpenRpc.JsonSchema> world, final OpenRpc.JsonSchema schema) {
+    public OpenRpc.JsonSchema resolveRefs(
+            final Map<String, OpenRpc.JsonSchema> world, final OpenRpc.JsonSchema schema) {
         return resolveRefs(world, schema, new HashSet<>());
     }
 
     // visitedRefs breaks the recursion for self referencing models - a tree node with children of its own type
     // for example - which would else blow the stack up
-    private OpenRpc.JsonSchema resolveRefs(final Map<String, OpenRpc.JsonSchema> world, final OpenRpc.JsonSchema schema,
-                                           final Set<String> visitedRefs) {
+    private OpenRpc.JsonSchema resolveRefs(
+            final Map<String, OpenRpc.JsonSchema> world,
+            final OpenRpc.JsonSchema schema,
+            final Set<String> visitedRefs) {
         if (schema == null) {
             return null;
         }
@@ -164,17 +168,33 @@ public class OpenRpcService {
 
             if (newProperties != null || additionalProps != schema.additionalProperties()) {
                 return new OpenRpc.JsonSchema(
-                        null, null,
-                        schema.type(), schema.nullable(), schema.description(), schema.format(), schema.pattern(),
-                        newProperties == null ? schema.properties() : newProperties, additionalProps,
-                        schema.items(), schema.enumeration());
+                        null,
+                        null,
+                        schema.type(),
+                        schema.nullable(),
+                        schema.description(),
+                        schema.format(),
+                        schema.pattern(),
+                        newProperties == null ? schema.properties() : newProperties,
+                        additionalProps,
+                        schema.items(),
+                        schema.enumeration());
             }
         } else if ("array".equals(schema.type()) && schema.items() != null) {
             final var newItems = resolveRefs(world, schema.items(), visitedRefs);
             if (newItems != null) {
                 return new OpenRpc.JsonSchema(
-                        null, null, schema.type(), schema.nullable(), schema.description(), schema.format(), schema.pattern(),
-                        schema.properties(), schema.additionalProperties(), newItems, schema.enumeration());
+                        null,
+                        null,
+                        schema.type(),
+                        schema.nullable(),
+                        schema.description(),
+                        schema.format(),
+                        schema.pattern(),
+                        schema.properties(),
+                        schema.additionalProperties(),
+                        newItems,
+                        schema.enumeration());
             }
         }
         return null;

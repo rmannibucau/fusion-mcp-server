@@ -28,9 +28,9 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 public record ResourceUpdatedNotification(
         @Property(documentation = "The resource which changed.")
         String uri,
+
         @Property(documentation = "Human oriented name of the resource.")
-        String title
-) {
+        String title) {
     public static ResourceUpdatedNotification of(final String uri) {
         return new ResourceUpdatedNotification(uri, null);
     }

@@ -27,11 +27,8 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
  */
 @JsonModel
 public record MessageNotification(
-        @Property(documentation = "Free form logger name.")
-        String logger,
-        @Property(documentation = "Severity of the record.")
-        LoggingLevel level,
+        @Property(documentation = "Free form logger name.") String logger,
+        @Property(documentation = "Severity of the record.") LoggingLevel level,
+
         @Property(documentation = "The payload, a string or any JSON structure.")
-        Object data
-) {
-}
+        Object data) {}

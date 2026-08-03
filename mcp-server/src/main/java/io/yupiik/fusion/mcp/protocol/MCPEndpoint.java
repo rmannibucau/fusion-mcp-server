@@ -15,6 +15,12 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
+import static io.yupiik.fusion.mcp.protocol.MCPProtocol.PROTOCOL_VERSION_HEADER;
+import static io.yupiik.fusion.mcp.protocol.MCPProtocol.SESSION_HEADER;
+import static java.util.concurrent.CompletableFuture.completedFuture;
+import static java.util.logging.Level.FINEST;
+import static java.util.logging.Level.SEVERE;
+
 import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 import io.yupiik.fusion.framework.build.api.http.HttpMatcher;
 import io.yupiik.fusion.framework.build.api.order.Order;
@@ -24,7 +30,6 @@ import io.yupiik.fusion.http.server.api.Response;
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.jsonrpc.JsonRpcHandler;
 import io.yupiik.fusion.mcp.configuration.MCPConfiguration;
-
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,12 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
 import java.util.logging.Logger;
-
-import static io.yupiik.fusion.mcp.protocol.MCPProtocol.PROTOCOL_VERSION_HEADER;
-import static io.yupiik.fusion.mcp.protocol.MCPProtocol.SESSION_HEADER;
-import static java.util.concurrent.CompletableFuture.completedFuture;
-import static java.util.logging.Level.FINEST;
-import static java.util.logging.Level.SEVERE;
 
 /**
  * The {@code POST /mcp} half of the MCP streamable HTTP transport.
@@ -61,6 +60,7 @@ public class MCPEndpoint {
      * {@code PartialResponse}, they are copied to the HTTP response.
      */
     private static final String JSONRPC_RESPONSE_HEADERS = "yupiik.jsonrpc.response.headers";
+
     private static final String JSON_CONTENT_TYPE = "application/json;charset=utf-8";
     private static final String INITIALIZE = "initialize";
 
@@ -75,8 +75,11 @@ public class MCPEndpoint {
         this(null, null, null, null);
     }
 
-    public MCPEndpoint(final JsonRpcHandler handler, final JsonMapper jsons, final MCPSessions sessions,
-                       final MCPConfiguration configuration) {
+    public MCPEndpoint(
+            final JsonRpcHandler handler,
+            final JsonMapper jsons,
+            final MCPSessions sessions,
+            final MCPConfiguration configuration) {
         this.handler = handler;
         this.jsons = jsons;
         this.sessions = sessions;
@@ -88,7 +91,8 @@ public class MCPEndpoint {
     public CompletionStage<Response> handle(final Request request) {
         final var protocolVersion = request.header(PROTOCOL_VERSION_HEADER);
         if (protocolVersion != null && !MCPProtocol.SUPPORTED_VERSIONS.contains(protocolVersion)) {
-            return completedFuture(httpError(400, -32600, "Unsupported " + PROTOCOL_VERSION_HEADER + " '" + protocolVersion + "'"));
+            return completedFuture(
+                    httpError(400, -32600, "Unsupported " + PROTOCOL_VERSION_HEADER + " '" + protocolVersion + "'"));
         }
 
         try {
@@ -110,7 +114,8 @@ public class MCPEndpoint {
         final var calls = new ArrayList<Object>(messages.size());
         for (final var message : messages) {
             if (isClientResponse(message)) {
-                @SuppressWarnings("unchecked") final var response = (Map<String, Object>) message;
+                @SuppressWarnings("unchecked")
+                final var response = (Map<String, Object>) message;
                 clientResponses.add(response);
             } else {
                 calls.add(message);
@@ -127,8 +132,7 @@ public class MCPEndpoint {
         if (calls.isEmpty()) { // only notifications and/or responses, nothing to answer
             return completedFuture(response(null, request, resolution));
         }
-        return handler
-                .execute(payload instanceof List<?> ? calls : calls.get(0), request)
+        return handler.execute(payload instanceof List<?> ? calls : calls.get(0), request)
                 .thenApply(result -> response(result, request, resolution))
                 .exceptionally(error -> onError(-32603, error));
     }
@@ -169,17 +173,16 @@ public class MCPEndpoint {
             logger.log(FINEST, () -> "Ignoring client response with an unknown id: " + message.get("id"));
             return;
         }
-        @SuppressWarnings("unchecked") final var error = message.get("error") instanceof Map<?, ?> map ?
-                (Map<String, Object>) map :
-                null;
+        @SuppressWarnings("unchecked")
+        final var error = message.get("error") instanceof Map<?, ?> map ? (Map<String, Object>) map : null;
         session.onClientResponse(id.longValue(), message.get("result"), error);
     }
 
     private boolean isClientResponse(final Object message) {
-        return message instanceof Map<?, ?> map &&
-                map.get("method") == null &&
-                map.get("id") != null &&
-                (map.containsKey("result") || map.containsKey("error"));
+        return message instanceof Map<?, ?> map
+                && map.get("method") == null
+                && map.get("id") != null
+                && (map.containsKey("result") || map.containsKey("error"));
     }
 
     private Response response(final Object payload, final Request request, final Resolution resolution) {
@@ -187,7 +190,8 @@ public class MCPEndpoint {
 
         final var extraHeaders = request.attribute(JSONRPC_RESPONSE_HEADERS, Map.class);
         if (extraHeaders != null) {
-            @SuppressWarnings("unchecked") final var headers = (Map<String, String>) extraHeaders;
+            @SuppressWarnings("unchecked")
+            final var headers = (Map<String, String>) extraHeaders;
             headers.forEach(builder::header);
         }
         if (resolution.created() && resolution.session().id() != null) {
@@ -199,8 +203,7 @@ public class MCPEndpoint {
         if (payload == null || (payload instanceof Collection<?> responses && responses.isEmpty())) {
             return builder.status(202).build();
         }
-        return builder
-                .status(200)
+        return builder.status(200)
                 .body((IOConsumer<Writer>) writer -> {
                     try (writer) {
                         jsons.write(payload, writer);
@@ -226,6 +229,5 @@ public class MCPEndpoint {
                 .build();
     }
 
-    private record Resolution(MCPSession session, boolean created, Response error) {
-    }
+    private record Resolution(MCPSession session, boolean created, Response error) {}
 }

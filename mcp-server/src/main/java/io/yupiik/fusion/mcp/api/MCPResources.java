@@ -18,7 +18,6 @@ package io.yupiik.fusion.mcp.api;
 import io.yupiik.fusion.mcp.model.ReadResourceResponse;
 import io.yupiik.fusion.mcp.model.Resource;
 import io.yupiik.fusion.mcp.model.ResourceTemplate;
-
 import java.util.List;
 import java.util.Optional;
 

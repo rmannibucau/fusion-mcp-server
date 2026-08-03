@@ -15,12 +15,14 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
+import static java.util.Optional.ofNullable;
+import static java.util.logging.Level.FINE;
+
 import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 import io.yupiik.fusion.framework.build.api.lifecycle.Destroy;
 import io.yupiik.fusion.http.server.api.Request;
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.mcp.configuration.MCPConfiguration;
-
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -28,9 +30,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
-
-import static java.util.Optional.ofNullable;
-import static java.util.logging.Level.FINE;
 
 /**
  * Holds the live {@link MCPSession}s.
@@ -61,8 +60,11 @@ public class MCPSessions {
 
     public MCPSessions(final JsonMapper jsons, final MCPConfiguration configuration) {
         this.jsons = jsons;
-        this.sessionTimeout = configuration == null ? Duration.ZERO : Duration.ofSeconds(configuration.sessionTimeout());
-        this.clientRequestTimeout = configuration == null ? Duration.ofSeconds(30) : Duration.ofSeconds(configuration.clientRequestTimeout());
+        this.sessionTimeout =
+                configuration == null ? Duration.ZERO : Duration.ofSeconds(configuration.sessionTimeout());
+        this.clientRequestTimeout = configuration == null
+                ? Duration.ofSeconds(30)
+                : Duration.ofSeconds(configuration.clientRequestTimeout());
     }
 
     /**

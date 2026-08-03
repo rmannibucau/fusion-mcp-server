@@ -15,32 +15,30 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
-import org.junit.jupiter.api.Test;
-
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Flow;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.yupiik.fusion.mcp.test.Loggers;
+import io.yupiik.fusion.mcp.test.SseSubscriber;
+import java.util.List;
+import org.junit.jupiter.api.Test;
 
 class SseBusTest {
     @Test
     void everySubscriptionIsGreetedWithAComment() {
-        final var subscriber = new TestSubscriber(1);
+        final var subscriber = SseSubscriber.strict(1);
         final var bus = new SseBus();
         bus.subscribe(subscriber);
 
         // it commits the HTTP response so the client knows the stream is live before any message
-        assertEquals(List.of(": ping\n\n"), subscriber.received);
+        assertEquals(List.of(": ping\n\n"), subscriber.received());
     }
 
     @Test
     void frameFormat() {
-        final var subscriber = new TestSubscriber(1);
+        final var subscriber = SseSubscriber.strict(1);
         final var bus = new SseBus();
         bus.subscribe(subscriber);
         bus.publish("{\"jsonrpc\":\"2.0\"}");
@@ -56,7 +54,7 @@ class SseBusTest {
 
         assertEquals(List.of("{\"a\":1}", "{\"a\":2}"), bus.queued());
 
-        final var subscriber = new TestSubscriber(1);
+        final var subscriber = SseSubscriber.strict(1);
         bus.subscribe(subscriber);
 
         assertEquals(2, subscriber.messages().size());
@@ -67,34 +65,34 @@ class SseBusTest {
 
     @Test
     void backpressure() {
-        final var subscriber = new TestSubscriber(0); // requests nothing
+        final var subscriber = SseSubscriber.strict(0); // requests nothing
         final var bus = new SseBus();
         bus.subscribe(subscriber);
         bus.publish("{\"a\":1}");
 
-        assertTrue(subscriber.received.isEmpty(), "not even the greeting is written without demand");
+        assertTrue(subscriber.received().isEmpty(), "not even the greeting is written without demand");
 
-        subscriber.subscription.request(1);
-        assertEquals(List.of(": ping\n\n"), subscriber.received, "one item of demand, one frame: the greeting");
+        subscriber.subscription().request(1);
+        assertEquals(List.of(": ping\n\n"), subscriber.received(), "one item of demand, one frame: the greeting");
 
-        subscriber.subscription.request(1);
+        subscriber.subscription().request(1);
         assertEquals(1, subscriber.messages().size(), "the next one delivers the message");
     }
 
     @Test
     void keepAliveIsAComment() {
-        final var subscriber = new TestSubscriber(1);
+        final var subscriber = SseSubscriber.strict(1);
         final var bus = new SseBus();
         bus.subscribe(subscriber);
         bus.keepAlive();
 
-        assertEquals(List.of(": ping\n\n", ": ping\n\n"), subscriber.received, "the greeting plus the explicit one");
+        assertEquals(List.of(": ping\n\n", ": ping\n\n"), subscriber.received(), "the greeting plus the explicit one");
         assertEquals(0, bus.lastEventId(), "a keep-alive is not a message so it must not consume an event id");
     }
 
     @Test
     void replay() {
-        final var first = new TestSubscriber(1);
+        final var first = SseSubscriber.strict(1);
         final var bus = new SseBus();
         bus.subscribe(first);
         bus.publish("{\"a\":1}");
@@ -104,25 +102,29 @@ class SseBusTest {
 
         // like the transport does: arm the replay, then let the HTTP layer subscribe
         bus.replayFrom(1); // the client got the first event only
-        final var reconnected = new TestSubscriber(1);
+        final var reconnected = SseSubscriber.strict(1);
         bus.subscribe(reconnected);
 
         assertEquals(2, reconnected.messages().size());
-        assertTrue(reconnected.messages().get(0).contains("data: {\"a\":2}"), reconnected.messages().toString());
-        assertTrue(reconnected.messages().get(1).contains("data: {\"a\":3}"), reconnected.messages().toString());
+        assertTrue(
+                reconnected.messages().get(0).contains("data: {\"a\":2}"),
+                reconnected.messages().toString());
+        assertTrue(
+                reconnected.messages().get(1).contains("data: {\"a\":3}"),
+                reconnected.messages().toString());
     }
 
     @Test
     void subscribingAgainSupersedesThePreviousStream() {
-        final var first = new TestSubscriber(1);
+        final var first = SseSubscriber.strict(1);
         final var bus = new SseBus();
         bus.subscribe(first);
 
-        final var second = new TestSubscriber(1);
+        final var second = SseSubscriber.strict(1);
         bus.subscribe(second);
 
-        assertTrue(first.completed, "at most one stream per session, the previous one is completed");
-        assertFalse(second.completed);
+        assertTrue(first.isCompleted(), "at most one stream per session, the previous one is completed");
+        assertFalse(second.isCompleted());
 
         bus.publish("{\"a\":1}");
         assertTrue(first.messages().isEmpty(), "nothing is delivered to the superseded stream");
@@ -131,7 +133,7 @@ class SseBusTest {
 
     @Test
     void replayBufferIsBounded() {
-        final var subscriber = new TestSubscriber(1);
+        final var subscriber = SseSubscriber.strict(1);
         final var bus = new SseBus();
         bus.subscribe(subscriber);
         for (int i = 1; i <= 130; i++) {
@@ -141,23 +143,25 @@ class SseBusTest {
         assertEquals(130, bus.lastEventId(), "every message consumes an event id");
 
         bus.replayFrom(0); // ask for everything, only the last 128 are kept
-        final var reconnected = new TestSubscriber(1);
+        final var reconnected = SseSubscriber.strict(1);
         bus.subscribe(reconnected);
 
         assertEquals(128, reconnected.messages().size());
-        assertTrue(reconnected.messages().get(0).contains("data: {\"a\":3}"), reconnected.messages().get(0));
+        assertTrue(
+                reconnected.messages().get(0).contains("data: {\"a\":3}"),
+                reconnected.messages().get(0));
     }
 
     @Test
     void keepAliveIsNotReplayed() {
-        final var subscriber = new TestSubscriber(1);
+        final var subscriber = SseSubscriber.strict(1);
         final var bus = new SseBus();
         bus.subscribe(subscriber);
         bus.publish("{\"a\":1}");
         bus.keepAlive();
 
         bus.replayFrom(0);
-        final var reconnected = new TestSubscriber(1);
+        final var reconnected = SseSubscriber.strict(1);
         bus.subscribe(reconnected);
 
         assertEquals(1, reconnected.messages().size(), "a comment is not a message, it is not replayed");
@@ -166,14 +170,14 @@ class SseBusTest {
 
     @Test
     void cancelCompletesTheStream() {
-        final var subscriber = new TestSubscriber(1);
+        final var subscriber = SseSubscriber.strict(1);
         final var bus = new SseBus();
         bus.subscribe(subscriber);
 
-        assertFalse(subscriber.completed);
+        assertFalse(subscriber.isCompleted());
         bus.cancel();
 
-        assertTrue(subscriber.completed);
+        assertTrue(subscriber.isCompleted());
         assertTrue(bus.isClosed());
     }
 
@@ -182,57 +186,135 @@ class SseBusTest {
         final var bus = new SseBus();
         bus.cancel();
 
-        final var subscriber = new TestSubscriber(1);
+        final var subscriber = SseSubscriber.strict(1);
         bus.subscribe(subscriber);
 
-        assertTrue(subscriber.completed);
+        assertTrue(subscriber.isCompleted());
     }
 
-    /**
-     * Mimics the HTTP layer: it requests one item at a time and does it from within {@code onNext}, which makes the
-     * bus drain loop re-entrant.
-     */
-    private static class TestSubscriber implements Flow.Subscriber<ByteBuffer> {
-        private final List<String> received = new ArrayList<>();
-        private final long request;
-        private Flow.Subscription subscription;
-        private boolean completed;
+    @Test
+    void cancelIsIdempotent() {
+        final var bus = new SseBus();
+        final var subscriber = SseSubscriber.strict(1);
+        bus.subscribe(subscriber);
 
-        private TestSubscriber(final long request) {
-            this.request = request;
-        }
+        bus.cancel();
+        assertTrue(bus.isClosed());
+        assertTrue(subscriber.isCompleted());
 
-        /**
-         * @return the received frames without the comments - the greeting and the keep-alives.
-         */
-        private List<String> messages() {
-            return received.stream().filter(it -> !it.startsWith(":")).toList();
-        }
+        // the second call must not complete the - now unrelated - subscriber again
+        bus.cancel();
+        assertTrue(bus.isClosed());
+    }
 
-        @Override
-        public void onSubscribe(final Flow.Subscription subscription) {
-            this.subscription = subscription;
-            if (request > 0) {
-                subscription.request(request);
-            }
-        }
+    @Test
+    void aNonPositiveDemandIsARequestViolation() {
+        final var bus = new SseBus();
+        final var subscriber = SseSubscriber.broken(0); // records onError instead of failing the test
+        bus.subscribe(subscriber);
 
-        @Override
-        public void onNext(final ByteBuffer item) {
-            received.add(UTF_8.decode(item).toString());
-            if (request > 0) {
-                subscription.request(request);
-            }
-        }
+        subscriber.subscription().request(0);
+        assertInstanceOf(IllegalArgumentException.class, subscriber.error());
+        assertEquals("Invalid request: 0", subscriber.error().getMessage());
 
-        @Override
-        public void onError(final Throwable throwable) {
-            throw new IllegalStateException(throwable);
-        }
+        subscriber.subscription().request(-5);
+        assertEquals("Invalid request: -5", subscriber.error().getMessage());
 
-        @Override
-        public void onComplete() {
-            completed = true;
-        }
+        // nothing was delivered, an invalid request adds no demand
+        assertTrue(subscriber.received().isEmpty());
+    }
+
+    @Test
+    void anUnboundedDemandIsNeverDecremented() {
+        final var bus = new SseBus();
+        final var subscriber = SseSubscriber.strict(0);
+        bus.subscribe(subscriber);
+
+        subscriber.subscription().request(Long.MAX_VALUE);
+        // more demand on top of an already unbounded one stays unbounded
+        subscriber.subscription().request(1);
+        bus.publish("{\"a\":1}");
+        bus.publish("{\"a\":2}");
+
+        assertEquals(2, subscriber.messages().size());
+    }
+
+    @Test
+    void anOverflowingDemandIsClampedToUnbounded() {
+        final var bus = new SseBus();
+        final var subscriber = SseSubscriber.strict(0);
+        bus.subscribe(subscriber);
+
+        subscriber.subscription().request(Long.MAX_VALUE - 1);
+        subscriber.subscription().request(10); // would wrap around to a negative amount of demand
+        bus.publish("{\"a\":1}");
+
+        assertEquals(1, subscriber.messages().size());
+    }
+
+    @Test
+    void cancellingTheSubscriptionStopsTheDelivery() {
+        final var bus = new SseBus();
+        final var subscriber = SseSubscriber.strict(1);
+        bus.subscribe(subscriber);
+        assertEquals(1, subscriber.received().size(), "the greeting");
+
+        subscriber.subscription().cancel();
+        bus.publish("{\"a\":1}");
+
+        assertTrue(subscriber.messages().isEmpty());
+        // the frame stays queued, the client will get it when it opens a new stream
+        assertEquals(List.of("{\"a\":1}"), bus.queued());
+    }
+
+    @Test
+    void cancellingASupersededSubscriptionDoesNotDropTheLiveOne() {
+        final var bus = new SseBus();
+        final var first = SseSubscriber.strict(1);
+        bus.subscribe(first);
+        final var second = SseSubscriber.strict(1);
+        bus.subscribe(second);
+
+        first.subscription().cancel(); // it is not the current subscriber anymore, this must be a no-op
+        bus.publish("{\"a\":1}");
+
+        assertEquals(1, second.messages().size());
+    }
+
+    @Test
+    void aClientGoingAwayMidStreamDropsTheChannel() {
+        final var bus = new SseBus();
+        final var subscriber = SseSubscriber.broken(1);
+
+        // a write failure is the normal end of a SSE channel, not a server error
+        Loggers.atFinest(SseBus.class, () -> bus.subscribe(subscriber));
+
+        assertInstanceOf(IllegalStateException.class, subscriber.error());
+        assertEquals("the client went away", subscriber.error().getMessage());
+        // the channel was forgotten, so publishing again only queues
+        bus.publish("{\"a\":1}");
+        assertEquals(List.of("{\"a\":1}"), bus.queued());
+    }
+
+    @Test
+    void aClientFailingOnTheFailureNotificationIsStillDropped() {
+        final var bus = new SseBus();
+        final var subscriber = SseSubscriber.brokenBeyondRepair(1);
+
+        Loggers.atFinest(SseBus.class, () -> bus.subscribe(subscriber));
+
+        bus.publish("{\"a\":1}");
+        assertEquals(List.of("{\"a\":1}"), bus.queued());
+    }
+
+    @Test
+    void aClientGivingUpDuringTheHandshakeOfAClosedBusIsSafe() {
+        final var bus = new SseBus();
+        bus.cancel();
+
+        // it cancels from onSubscribe, so the bus has no subscriber left to complete when it notices it is closed
+        bus.subscribe(SseSubscriber.cancelling());
+
+        assertTrue(bus.isClosed());
     }
 }

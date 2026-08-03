@@ -15,13 +15,12 @@
  */
 package io.yupiik.fusion.mcp.api;
 
-import io.yupiik.fusion.framework.build.api.metadata.BeanMetadataAlias;
-
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
 import static java.lang.annotation.ElementType.METHOD;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
+
+import io.yupiik.fusion.framework.build.api.metadata.BeanMetadataAlias;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
 
 /**
  * Exposes a JSON-RPC method as a MCP prompt, i.e. as a reusable message template the user can pick:
@@ -48,5 +47,4 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 @Target(METHOD)
 @Retention(SOURCE)
 @BeanMetadataAlias(name = "mcp.type", value = "prompt")
-public @interface MCPPrompt {
-}
+public @interface MCPPrompt {}

@@ -17,7 +17,6 @@ package io.yupiik.fusion.mcp.model.fusion;
 
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
-
 import java.util.List;
 import java.util.Map;
 
@@ -28,17 +27,9 @@ import java.util.Map;
  * It is intentionally partial: only the attributes MCP maps to a tool/prompt descriptor are read.
  */
 @JsonModel
-public record OpenRpc(
-        Map<String, JsonSchema> schemas,
-        Map<String, JsonRpcMethod> methods
-) {
+public record OpenRpc(Map<String, JsonSchema> schemas, Map<String, JsonRpcMethod> methods) {
     @JsonModel
-    public record JsonRpcMethod(
-            String name,
-            String description,
-            List<Parameter> params,
-            Result result
-    ) {
+    public record JsonRpcMethod(String name, String description, List<Parameter> params, Result result) {
         /**
          * @param name        the parameter name.
          * @param description the {@code @JsonRpcParam} documentation, note that it is set on the parameter and not on
@@ -47,12 +38,7 @@ public record OpenRpc(
          * @param required    whether the parameter is mandatory.
          */
         @JsonModel
-        public record Parameter(
-                String name,
-                String description,
-                JsonSchema schema,
-                Boolean required
-        ) {}
+        public record Parameter(String name, String description, JsonSchema schema, Boolean required) {}
     }
 
     @JsonModel
@@ -70,7 +56,5 @@ public record OpenRpc(
             Map<String, JsonSchema> properties,
             Object additionalProperties,
             JsonSchema items,
-            @JsonProperty("enum") List<String> enumeration
-    ) {
-    }
+            @JsonProperty("enum") List<String> enumeration) {}
 }

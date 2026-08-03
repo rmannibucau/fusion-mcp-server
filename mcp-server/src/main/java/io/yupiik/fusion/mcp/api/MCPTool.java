@@ -15,13 +15,12 @@
  */
 package io.yupiik.fusion.mcp.api;
 
-import io.yupiik.fusion.framework.build.api.metadata.BeanMetadataAlias;
-
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
 import static java.lang.annotation.ElementType.METHOD;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
+
+import io.yupiik.fusion.framework.build.api.metadata.BeanMetadataAlias;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
 
 /**
  * Exposes a JSON-RPC method as a MCP tool, i.e. as something the model can call:
@@ -53,5 +52,4 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 @Target(METHOD)
 @Retention(SOURCE)
 @BeanMetadataAlias(name = "mcp.type", value = "tool")
-public @interface MCPTool {
-}
+public @interface MCPTool {}

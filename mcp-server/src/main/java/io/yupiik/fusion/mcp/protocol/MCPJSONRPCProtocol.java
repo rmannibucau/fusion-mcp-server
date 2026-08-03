@@ -15,6 +15,8 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
+import static java.util.logging.Level.FINE;
+
 import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 import io.yupiik.fusion.framework.build.api.jsonrpc.JsonRpc;
 import io.yupiik.fusion.framework.build.api.jsonrpc.JsonRpcParam;
@@ -44,7 +46,6 @@ import io.yupiik.fusion.mcp.model.PromptResponse;
 import io.yupiik.fusion.mcp.model.ReadResourceResponse;
 import io.yupiik.fusion.mcp.model.ToolResponse;
 import io.yupiik.fusion.mcp.service.DescriptorService;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,8 +53,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
-
-import static java.util.logging.Level.FINE;
 
 /**
  * The MCP protocol itself: every MCP method is a plain Fusion {@code @JsonRpc} method, exactly like the tools of the
@@ -83,33 +82,38 @@ public class MCPJSONRPCProtocol {
         this(null, null, null, null, null, null, null);
     }
 
-    public MCPJSONRPCProtocol(final DescriptorService descriptors,
-                              final JsonMapper jsons,
-                              final JsonRpcHandler handler,
-                              final MCPSessions sessions,
-                              final MCPConfiguration configuration,
-                              final List<MCPResources> resources,
-                              final List<MCPCompletions> completions) {
+    public MCPJSONRPCProtocol(
+            final DescriptorService descriptors,
+            final JsonMapper jsons,
+            final JsonRpcHandler handler,
+            final MCPSessions sessions,
+            final MCPConfiguration configuration,
+            final List<MCPResources> resources,
+            final List<MCPCompletions> completions) {
         this.descriptors = descriptors;
         this.handler = handler;
         this.jsons = jsons;
         this.sessions = sessions;
         this.resources = resources == null ? List.of() : resources;
         this.completions = completions == null ? List.of() : completions;
-        this.initializeResponse = descriptors == null || configuration == null ?
-                null :
-                new InitializeResponse(
+        this.initializeResponse = descriptors == null || configuration == null
+                ? null
+                : new InitializeResponse(
                         MCPProtocol.LATEST_VERSION,
                         new InitializeResponse.Capabilities(
                                 // logging is always there, any bean can push records with MCPNotifier
                                 Map.of(),
-                                descriptors.prompts().prompts().isEmpty() ? null : new InitializeResponse.Prompts(false),
-                                // resources are provided at runtime so both subscriptions and list changes are supported
+                                descriptors.prompts().prompts().isEmpty()
+                                        ? null
+                                        : new InitializeResponse.Prompts(false),
+                                // resources are provided at runtime so both subscriptions and list changes are
+                                // supported
                                 this.resources.isEmpty() ? null : new InitializeResponse.Resources(true, true),
                                 descriptors.tools().tools().isEmpty() ? null : new InitializeResponse.Tools(false),
                                 this.completions.isEmpty() ? null : Map.of(),
                                 null),
-                        new InitializeResponse.ServerInfo(configuration.name(), configuration.title(), configuration.version()),
+                        new InitializeResponse.ServerInfo(
+                                configuration.name(), configuration.title(), configuration.version()),
                         configuration.instructions());
     }
 
@@ -119,13 +123,16 @@ public class MCPJSONRPCProtocol {
      * The session is created by the transport - {@link MCPEndpoint} - which also returns its identifier in the
      * {@code Mcp-Session-Id} response header.
      */
-    @JsonRpc(value = "initialize", documentation = "Negotiates the protocol version and returns the server capabilities.")
+    @JsonRpc(
+            value = "initialize",
+            documentation = "Negotiates the protocol version and returns the server capabilities.")
     public InitializeResponse initialize(
-            @JsonRpcParam(required = true, documentation = "The protocol version the client wants to use.") final String protocolVersion,
-            @JsonRpcParam(documentation = "What the client supports: roots, sampling, elicitation.") final Capabilities capabilities,
+            @JsonRpcParam(required = true, documentation = "The protocol version the client wants to use.")
+                    final String protocolVersion,
+            @JsonRpcParam(documentation = "What the client supports: roots, sampling, elicitation.")
+                    final Capabilities capabilities,
             @JsonRpcParam(documentation = "Which client is connecting.") final ClientInfo clientInfo,
-            final Request request
-    ) {
+            final Request request) {
         // the specification requires to answer a version we support - and not an error - the client then decides if
         // it can go on or not
         final var negotiated = MCPProtocol.negotiate(protocolVersion);
@@ -134,7 +141,10 @@ public class MCPJSONRPCProtocol {
             return initializeResponse;
         }
         return new InitializeResponse(
-                negotiated, initializeResponse.capabilities(), initializeResponse.serverInfo(), initializeResponse.instructions());
+                negotiated,
+                initializeResponse.capabilities(),
+                initializeResponse.serverInfo(),
+                initializeResponse.instructions());
     }
 
     @JsonRpc(value = "notifications/initialized", documentation = "The client is ready, the session can be used.")
@@ -143,14 +153,18 @@ public class MCPJSONRPCProtocol {
     }
 
     @JsonRpc(value = "notifications/cancelled", documentation = "The client gave up on a request it sent.")
-    public void onCancelled(@JsonRpcParam(documentation = "Why the request was cancelled.") final String reason,
-                            @JsonRpcParam(documentation = "The cancelled request id, a string or a number.") final Object requestId) {
+    public void onCancelled(
+            @JsonRpcParam(documentation = "Why the request was cancelled.") final String reason,
+            @JsonRpcParam(documentation = "The cancelled request id, a string or a number.") final Object requestId) {
         // the request is already running in the JSON-RPC stack so there is nothing to interrupt - and the SSE
         // channel must stay open, only the request was cancelled, not the session
         logger.log(FINE, () -> "Client cancelled request '" + requestId + "'" + (reason == null ? "" : ": " + reason));
     }
 
-    @JsonRpc(value = "ping", documentation = "Liveness check, see https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/ping.")
+    @JsonRpc(
+            value = "ping",
+            documentation =
+                    "Liveness check, see https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/ping.")
     public Map<String, String> ping(@JsonRpcParam("_meta") final Metadata metadata) {
         return Map.of();
     }
@@ -160,8 +174,7 @@ public class MCPJSONRPCProtocol {
             @JsonRpcParam final String message,
             @JsonRpcParam final Double progress,
             @JsonRpcParam final Object progressToken, // a string or a number
-            @JsonRpcParam final Double total
-    ) {
+            @JsonRpcParam final Double total) {
         // no-op: this server does not send the client requests it could report progress of
     }
 
@@ -172,63 +185,85 @@ public class MCPJSONRPCProtocol {
 
     // note: it returns an empty result and not void because MCP defines it as a request - a void JSON-RPC method is
     // seen as a notification by Fusion, so a client awaiting the response would wait forever
-    @JsonRpc(value = "logging/setLevel", documentation = "Sets the minimum severity of the log records sent to the client.")
-    public Map<String, String> setLoggingLevel(@JsonRpcParam(required = true, documentation = "A syslog level name: debug, info, notice, warning, error, critical, alert or emergency.") final String level,
-                                               final Request request) {
+    @JsonRpc(
+            value = "logging/setLevel",
+            documentation = "Sets the minimum severity of the log records sent to the client.")
+    public Map<String, String> setLoggingLevel(
+            @JsonRpcParam(
+                            required = true,
+                            documentation =
+                                    "A syslog level name: debug, info, notice, warning, error, critical, alert or emergency.")
+                    final String level,
+            final Request request) {
         final LoggingLevel parsed;
         try {
             parsed = LoggingLevel.valueOf(level);
         } catch (final IllegalArgumentException iae) {
-            throw new JsonRpcException(-32602, "Invalid logging level '" + level + "'", Map.of(
-                    "supported", Stream.of(LoggingLevel.values()).map(Enum::name).sorted().toList()), null);
+            throw new JsonRpcException(
+                    -32602,
+                    "Invalid logging level '" + level + "'",
+                    Map.of(
+                            "supported",
+                            Stream.of(LoggingLevel.values())
+                                    .map(Enum::name)
+                                    .sorted()
+                                    .toList()),
+                    null);
         }
         sessions.of(request).setLoggingLevel(parsed);
         return Map.of();
     }
 
     @JsonRpc(value = "tools/list", documentation = "Lists the tools the model can call.")
-    public ListToolsResponse listTools(@JsonRpcParam(documentation = "Pagination cursor, unused: all the tools are returned at once.") final String cursor) {
+    public ListToolsResponse listTools(
+            @JsonRpcParam(documentation = "Pagination cursor, unused: all the tools are returned at once.")
+                    final String cursor) {
         return descriptors.tools();
     }
 
     @JsonRpc(value = "tools/call", documentation = "Calls a tool.")
-    public CompletionStage<ToolResponse> callTool(@JsonRpcParam(required = true, documentation = "The tool name, as returned by tools/list.") final String name,
-                                                 @JsonRpcParam(documentation = "The tool arguments, they must match its inputSchema.") final Object arguments,
-                                                 final Request httpRequest) {
+    public CompletionStage<ToolResponse> callTool(
+            @JsonRpcParam(required = true, documentation = "The tool name, as returned by tools/list.")
+                    final String name,
+            @JsonRpcParam(documentation = "The tool arguments, they must match its inputSchema.")
+                    final Object arguments,
+            final Request httpRequest) {
         // only the methods flagged with @MCPTool are callable, else every JSON-RPC method of the application - and of
         // the MCP protocol itself - would be reachable through tools/call
         if (!descriptors.isTool(name)) {
             throw new JsonRpcException(-32602, "Unknown tool '" + name + "'", Map.of("name", name), null);
         }
-        return handler
-                .execute(jsonRpc(name, arguments), httpRequest)
-                .thenApply(res -> onToolResult(name, res));
+        return handler.execute(jsonRpc(name, arguments), httpRequest).thenApply(res -> onToolResult(name, res));
     }
 
     @JsonRpc(value = "prompts/list", documentation = "Lists the prompt templates the user can pick.")
-    public ListPromptsResponse listPrompts(@JsonRpcParam(documentation = "Pagination cursor, unused: all the prompts are returned at once.") final String cursor) {
+    public ListPromptsResponse listPrompts(
+            @JsonRpcParam(documentation = "Pagination cursor, unused: all the prompts are returned at once.")
+                    final String cursor) {
         return descriptors.prompts();
     }
 
     @JsonRpc(value = "prompts/get", documentation = "Expands a prompt template.")
-    public CompletionStage<PromptResponse> callPrompt(@JsonRpcParam(required = true, documentation = "The prompt name, as returned by prompts/list.") final String name,
-                                                     @JsonRpcParam(documentation = "The prompt arguments, all strings.") final Map<String, Object> arguments,
-                                                     final Request httpRequest) {
+    public CompletionStage<PromptResponse> callPrompt(
+            @JsonRpcParam(required = true, documentation = "The prompt name, as returned by prompts/list.")
+                    final String name,
+            @JsonRpcParam(documentation = "The prompt arguments, all strings.") final Map<String, Object> arguments,
+            final Request httpRequest) {
         if (!descriptors.isPrompt(name)) {
             throw new JsonRpcException(-32602, "Unknown prompt '" + name + "'", Map.of("name", name), null);
         }
-        return handler
-                .execute(jsonRpc(name, arguments), httpRequest)
-                .thenApply(res -> {
-                    if (res instanceof Response response && response.result() instanceof PromptResponse promptResponse) {
-                        return promptResponse;
-                    }
-                    throw toException(res instanceof Response response ? response.error() : null);
-                });
+        return handler.execute(jsonRpc(name, arguments), httpRequest).thenApply(res -> {
+            if (res instanceof Response response && response.result() instanceof PromptResponse promptResponse) {
+                return promptResponse;
+            }
+            throw toException(res instanceof Response response ? response.error() : null);
+        });
     }
 
     @JsonRpc(value = "resources/list", documentation = "Lists the resources the client can read.")
-    public ListResourcesResponse listResources(@JsonRpcParam(documentation = "Pagination cursor, unused: all the resources are returned at once.") final String cursor) {
+    public ListResourcesResponse listResources(
+            @JsonRpcParam(documentation = "Pagination cursor, unused: all the resources are returned at once.")
+                    final String cursor) {
         return new ListResourcesResponse(
                 resources.stream()
                         .map(MCPResources::resources)
@@ -238,8 +273,12 @@ public class MCPJSONRPCProtocol {
                 null);
     }
 
-    @JsonRpc(value = "resources/templates/list", documentation = "Lists the parameterized resources the client can read.")
-    public ListResourceTemplatesResponse listResourceTemplates(@JsonRpcParam(documentation = "Pagination cursor, unused: all the templates are returned at once.") final String cursor) {
+    @JsonRpc(
+            value = "resources/templates/list",
+            documentation = "Lists the parameterized resources the client can read.")
+    public ListResourceTemplatesResponse listResourceTemplates(
+            @JsonRpcParam(documentation = "Pagination cursor, unused: all the templates are returned at once.")
+                    final String cursor) {
         return new ListResourceTemplatesResponse(
                 resources.stream()
                         .map(MCPResources::resourceTemplates)
@@ -250,35 +289,44 @@ public class MCPJSONRPCProtocol {
     }
 
     @JsonRpc(value = "resources/read", documentation = "Reads the contents of a resource.")
-    public ReadResourceResponse readResource(@JsonRpcParam(required = true, documentation = "The resource uri.") final String uri) {
+    public ReadResourceResponse readResource(
+            @JsonRpcParam(required = true, documentation = "The resource uri.") final String uri) {
         return resources.stream()
                 .map(it -> it.read(uri))
                 .flatMap(Optional::stream)
                 .findFirst()
                 // -32002 is the code the specification reserves for a missing resource
-                .orElseThrow(() -> new JsonRpcException(-32002, "Unknown resource '" + uri + "'", Map.of("uri", uri), null));
+                .orElseThrow(
+                        () -> new JsonRpcException(-32002, "Unknown resource '" + uri + "'", Map.of("uri", uri), null));
     }
 
     // both return an empty result and not void, see setLoggingLevel: MCP defines them as requests
     @JsonRpc(value = "resources/subscribe", documentation = "Asks to be notified when a resource changes.")
-    public Map<String, String> subscribeResource(@JsonRpcParam(required = true, documentation = "The resource uri to watch.") final String uri,
-                                                 final Request request) {
+    public Map<String, String> subscribeResource(
+            @JsonRpcParam(required = true, documentation = "The resource uri to watch.") final String uri,
+            final Request request) {
         // no existence check: resources are dynamic, a client can legitimately watch a uri which does not exist yet
         sessions.of(request).subscribe(uri);
         return Map.of();
     }
 
     @JsonRpc(value = "resources/unsubscribe", documentation = "Stops watching a resource.")
-    public Map<String, String> unsubscribeResource(@JsonRpcParam(required = true, documentation = "The resource uri to stop watching.") final String uri,
-                                                  final Request request) {
+    public Map<String, String> unsubscribeResource(
+            @JsonRpcParam(required = true, documentation = "The resource uri to stop watching.") final String uri,
+            final Request request) {
         sessions.of(request).unsubscribe(uri);
         return Map.of();
     }
 
-    @JsonRpc(value = "completion/complete", documentation = "Suggests values for a prompt argument or a resource template variable.")
-    public CompleteResult completion(@JsonRpcParam(required = true, documentation = "The argument being completed and its current value.") final CompletionArgument argument,
-                                     @JsonRpcParam(documentation = "The arguments already resolved.") final CompletionContext context,
-                                     @JsonRpcParam(required = true, documentation = "What is completed: a prompt or a resource template.") final CompletionRef ref) {
+    @JsonRpc(
+            value = "completion/complete",
+            documentation = "Suggests values for a prompt argument or a resource template variable.")
+    public CompleteResult completion(
+            @JsonRpcParam(required = true, documentation = "The argument being completed and its current value.")
+                    final CompletionArgument argument,
+            @JsonRpcParam(documentation = "The arguments already resolved.") final CompletionContext context,
+            @JsonRpcParam(required = true, documentation = "What is completed: a prompt or a resource template.")
+                    final CompletionRef ref) {
         return new CompleteResult(
                 null,
                 completions.stream()
@@ -306,17 +354,19 @@ public class MCPJSONRPCProtocol {
         }
         // the specification wants tool failures to be reported in the result so the model can read and react to them
         return new ToolResponse(
-                null, true,
+                null,
+                true,
                 List.of(Content.text(response.error().message())),
-                Map.of("code", response.error().code(), "message", String.valueOf(response.error().message())));
+                Map.of(
+                        "code",
+                        response.error().code(),
+                        "message",
+                        String.valueOf(response.error().message())));
     }
 
     private Map<String, Object> jsonRpc(final String method, final Object params) {
         // no id: this is a nested invocation, the enclosing MCP request carries the client id
-        return Map.of(
-                "jsonrpc", "2.0",
-                "method", method,
-                "params", params == null ? Map.of() : params);
+        return Map.of("jsonrpc", "2.0", "method", method, "params", params == null ? Map.of() : params);
     }
 
     /**

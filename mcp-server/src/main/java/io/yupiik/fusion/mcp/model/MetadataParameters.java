@@ -24,7 +24,7 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
  */
 @JsonModel
 public record MetadataParameters(
-        @Property(documentation = "Optional free form metadata.")
-        @JsonProperty("_meta") Metadata metadata) {
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata) {
     public static final MetadataParameters EMPTY = new MetadataParameters(null);
 }

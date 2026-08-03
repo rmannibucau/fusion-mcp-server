@@ -19,7 +19,6 @@ import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 import io.yupiik.fusion.json.JsonMapper;
-
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -36,15 +35,17 @@ import java.util.stream.Stream;
  */
 @JsonModel
 public record ToolResponse(
-        @Property(documentation = "Optional free form metadata.")
-        @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
         @Property(documentation = "Set when the tool failed, the model is expected to read the error.")
         boolean isError,
+
         @Property(documentation = "The content blocks, what a model without structured output support reads.")
         List<Content> content,
+
         @Property(documentation = "The structured result, it must match the tool outputSchema when there is one.")
-        Object structuredContent
-) {
+        Object structuredContent) {
     /**
      * Wraps a JSON-RPC result as a tool response, the JSON representation is sent as text content - for models
      * without structured output support - and as {@code structuredContent}.

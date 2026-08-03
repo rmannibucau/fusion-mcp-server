@@ -15,6 +15,10 @@
  */
 package io.yupiik.fusion.mcp.service;
 
+import static java.util.Optional.ofNullable;
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
+
 import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.jsonrpc.JsonRpcRegistry;
@@ -25,16 +29,11 @@ import io.yupiik.fusion.mcp.model.JsonSchema;
 import io.yupiik.fusion.mcp.model.ListPromptsResponse;
 import io.yupiik.fusion.mcp.model.ListToolsResponse;
 import io.yupiik.fusion.mcp.model.fusion.OpenRpc;
-
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
-
-import static java.util.Optional.ofNullable;
-import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Turns the JSON-RPC methods flagged with {@link MCPTool}/{@link MCPPrompt} into MCP descriptors.
@@ -67,7 +66,8 @@ public class DescriptorService {
         this.jsons = null;
     }
 
-    public DescriptorService(final OpenRpcService openRpcService, final JsonRpcRegistry registry, final JsonMapper jsons) {
+    public DescriptorService(
+            final OpenRpcService openRpcService, final JsonRpcRegistry registry, final JsonMapper jsons) {
         this.jsons = jsons;
 
         final var openrpc = openRpcService.load();
@@ -75,17 +75,17 @@ public class DescriptorService {
 
         this.tools = new ListToolsResponse(
                 methods(openrpc, registry, TOOL)
-                        .map(it -> toTool(openRpcService, schemas, registry.methods().get(it.name()), it))
+                        .map(it -> toTool(
+                                openRpcService, schemas, registry.methods().get(it.name()), it))
                         .toList(),
                 // no pagination, all the descriptors are computed at startup and sent at once
                 null);
         this.prompts = new ListPromptsResponse(
-                methods(openrpc, registry, PROMPT)
-                        .map(this::toPrompt)
-                        .toList(),
-                null);
-        this.toolNames = tools.tools().stream().map(ListToolsResponse.Tool::name).collect(toSet());
-        this.promptNames = prompts.prompts().stream().map(ListPromptsResponse.Prompt::name).collect(toSet());
+                methods(openrpc, registry, PROMPT).map(this::toPrompt).toList(), null);
+        this.toolNames =
+                tools.tools().stream().map(ListToolsResponse.Tool::name).collect(toSet());
+        this.promptNames =
+                prompts.prompts().stream().map(ListPromptsResponse.Prompt::name).collect(toSet());
     }
 
     /**
@@ -131,22 +131,29 @@ public class DescriptorService {
                 .orElseGet(Set::of);
     }
 
-    private Stream<OpenRpc.JsonRpcMethod> methods(final OpenRpc openrpc, final JsonRpcRegistry registry, final String type) {
+    private Stream<OpenRpc.JsonRpcMethod> methods(
+            final OpenRpc openrpc, final JsonRpcRegistry registry, final String type) {
         return openrpc.methods().values().stream()
                 // a document can describe a method which is not deployed - a module on the classpath but not used -
                 // so ignore the ones the registry does not know
                 .filter(it -> registry.methods().containsKey(it.name()))
-                .filter(it -> type.equals(registry.methods().get(it.name()).metadata().getOrDefault(TYPE_METADATA, "")))
+                .filter(it ->
+                        type.equals(registry.methods().get(it.name()).metadata().getOrDefault(TYPE_METADATA, "")))
                 .sorted(Comparator.comparing(OpenRpc.JsonRpcMethod::name));
     }
 
-    private ListToolsResponse.Tool toTool(final OpenRpcService openRpcService, final Map<String, OpenRpc.JsonSchema> schemas,
-                                          final JsonRpcMethod method, final OpenRpc.JsonRpcMethod descriptor) {
+    private ListToolsResponse.Tool toTool(
+            final OpenRpcService openRpcService,
+            final Map<String, OpenRpc.JsonSchema> schemas,
+            final JsonRpcMethod method,
+            final OpenRpc.JsonRpcMethod descriptor) {
         final var result = descriptor.result();
         // the OpenRPC document describes what is serialized, so an asynchronous tool - CompletionStage<T> - has the
         // schema of T (needs Fusion >= 1.0.38)
-        final boolean noOutput = method.isNotification() ||
-                result == null || result.schema() == null || "null".equals(result.schema().type());
+        final boolean noOutput = method.isNotification()
+                || result == null
+                || result.schema() == null
+                || "null".equals(result.schema().type());
         return new ListToolsResponse.Tool(
                 null,
                 null,
@@ -159,9 +166,7 @@ public class DescriptorService {
                         descriptor.params().stream()
                                 .collect(toMap(
                                         OpenRpc.JsonRpcMethod.Parameter::name,
-                                        p -> toMcpSchema(
-                                                ofNullable(openRpcService.resolveRefs(schemas, p.schema())).orElseGet(p::schema),
-                                                description(p)),
+                                        p -> toParameterSchema(openRpcService, schemas, p),
                                         (a, b) -> a,
                                         LinkedHashMap::new)),
                         descriptor.params().stream()
@@ -169,7 +174,25 @@ public class DescriptorService {
                                 .map(OpenRpc.JsonRpcMethod.Parameter::name)
                                 .sorted()
                                 .toList()),
-                noOutput ? null : toMcpSchema(ofNullable(openRpcService.resolveRefs(schemas, result.schema())).orElseGet(result::schema)));
+                noOutput
+                        ? null
+                        : toMcpSchema(ofNullable(openRpcService.resolveRefs(schemas, result.schema()))
+                                .orElseGet(result::schema)));
+    }
+
+    /**
+     * @return the schema of a tool parameter, never {@code null}: a parameter which has none - which a handcrafted
+     * document can have, Fusion always sets one - keeps its entry in the enclosing {@code inputSchema} with an empty
+     * schema, i.e. one accepting anything.
+     */
+    private JsonSchema toParameterSchema(
+            final OpenRpcService openRpcService,
+            final Map<String, OpenRpc.JsonSchema> schemas,
+            final OpenRpc.JsonRpcMethod.Parameter parameter) {
+        final var description = description(parameter);
+        final var schema = ofNullable(openRpcService.resolveRefs(schemas, parameter.schema()))
+                .orElseGet(parameter::schema);
+        return ofNullable(toMcpSchema(schema, description)).orElseGet(() -> JsonSchema.of(null, description));
     }
 
     private ListPromptsResponse.Prompt toPrompt(final OpenRpc.JsonRpcMethod descriptor) {
@@ -225,23 +248,38 @@ public class DescriptorService {
             return null;
         }
         return new JsonSchema(
-                schema.type(), null,
+                schema.type(),
+                null,
                 description == null ? schema.description() : description,
-                schema.format(), schema.pattern(),
-                schema.properties() == null ? null : schema.properties().entrySet().stream()
-                        .collect(toMap(Map.Entry::getKey, it -> toMcpSchema(it.getValue()), (a, b) -> a, LinkedHashMap::new)),
-                schema.additionalProperties() instanceof Map<?, ?> ?
-                        toMcpSchema(jsons.fromString(OpenRpc.JsonSchema.class, jsons.toString(schema.additionalProperties()))) :
-                        schema.additionalProperties(),
+                schema.format(),
+                schema.pattern(),
+                schema.properties() == null
+                        ? null
+                        : schema.properties().entrySet().stream()
+                                .collect(toMap(
+                                        Map.Entry::getKey,
+                                        it -> toMcpSchema(it.getValue()),
+                                        (a, b) -> a,
+                                        LinkedHashMap::new)),
+                schema.additionalProperties() instanceof Map<?, ?>
+                        ? toMcpSchema(jsons.fromString(
+                                OpenRpc.JsonSchema.class, jsons.toString(schema.additionalProperties())))
+                        : schema.additionalProperties(),
                 toMcpSchema(schema.items()),
-                schema.enumeration(), null,
-                schema.properties() == null ?
-                        null :
-                        schema.properties().entrySet().stream()
-                                .filter(it -> it.getValue().nullable() != null && !it.getValue().nullable())
+                schema.enumeration(),
+                null,
+                schema.properties() == null
+                        ? null
+                        : schema.properties().entrySet().stream()
+                                .filter(it -> it.getValue().nullable() != null
+                                        && !it.getValue().nullable())
                                 .map(Map.Entry::getKey)
                                 .sorted()
                                 .toList(),
-                null, null, null, null, null);
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 }

@@ -15,6 +15,10 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.logging.Level.FINE;
+import static java.util.logging.Level.FINEST;
+
 import java.nio.ByteBuffer;
 import java.util.Deque;
 import java.util.List;
@@ -26,11 +30,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.logging.Level.FINE;
-import static java.util.logging.Level.FINEST;
-import static java.util.logging.Level.SEVERE;
 
 /**
  * The {@code text/event-stream} body of a MCP session, i.e. the queue of the messages the server sends to the client.
@@ -46,7 +45,8 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
      */
     private static final int REPLAY_BUFFER_SIZE = 128;
 
-    private static final ByteBuffer KEEP_ALIVE = ByteBuffer.wrap(": ping\n\n".getBytes(UTF_8)).asReadOnlyBuffer();
+    private static final ByteBuffer KEEP_ALIVE =
+            ByteBuffer.wrap(": ping\n\n".getBytes(UTF_8)).asReadOnlyBuffer();
 
     /**
      * Sentinel of {@link #replayFrom}: no {@code Last-Event-ID} was requested.
@@ -135,11 +135,7 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
             // previous - already dead - one silently swallow the frames, and the new stream would never flush
             final var from = replayFrom.getAndSet(NO_REPLAY);
             if (from >= 0) {
-                sent.stream()
-                        .filter(it -> it.id() > from)
-                        .toList()
-                        .reversed()
-                        .forEach(frames::addFirst);
+                sent.stream().filter(it -> it.id() > from).toList().reversed().forEach(frames::addFirst);
             }
             // a comment first: it commits the HTTP response so the client knows the stream is live before any message
             frames.addFirst(Frame.KEEP_ALIVE_FRAME);
@@ -154,7 +150,8 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
                     newSubscriber.onError(new IllegalArgumentException("Invalid request: " + n));
                     return;
                 }
-                pending.updateAndGet(p -> p == Long.MAX_VALUE || n == Long.MAX_VALUE || p + n < 0 ? Long.MAX_VALUE : p + n);
+                pending.updateAndGet(
+                        p -> p == Long.MAX_VALUE || n == Long.MAX_VALUE || p + n < 0 ? Long.MAX_VALUE : p + n);
                 drain();
             }
 
@@ -254,7 +251,10 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
 
     // visible for testing
     List<String> queued() {
-        return frames.stream().map(Frame::json).filter(java.util.Objects::nonNull).toList();
+        return frames.stream()
+                .map(Frame::json)
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 
     private record Frame(long id, String json) {

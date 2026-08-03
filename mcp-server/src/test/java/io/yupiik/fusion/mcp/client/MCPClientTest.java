@@ -15,18 +15,6 @@
  */
 package io.yupiik.fusion.mcp.client;
 
-import io.yupiik.fusion.json.JsonMapper;
-import io.yupiik.fusion.mcp.api.MCPNotifier;
-import io.yupiik.fusion.mcp.model.LoggingLevel;
-import io.yupiik.fusion.mcp.model.MetadataParameters;
-import io.yupiik.fusion.testing.Fusion;
-import io.yupiik.fusion.testing.FusionSupport;
-import org.junit.jupiter.api.Test;
-
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.util.Map;
-
 import static io.yupiik.fusion.testing.assertion.JsonAsserts.assertJsonEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -34,6 +22,17 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.yupiik.fusion.json.JsonMapper;
+import io.yupiik.fusion.mcp.api.MCPNotifier;
+import io.yupiik.fusion.mcp.model.LoggingLevel;
+import io.yupiik.fusion.mcp.model.MetadataParameters;
+import io.yupiik.fusion.testing.Fusion;
+import io.yupiik.fusion.testing.FusionSupport;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
 
 /**
  * The test client itself: it is shipped in the main artifact so applications test their own server with it.
@@ -50,7 +49,9 @@ class MCPClientTest {
             assertEquals(200, response.statusCode());
             assertNotNull(client.session(), "initialize must capture the Mcp-Session-Id header");
             // the session is reused, else the server would answer 404
-            assertEquals(200, client.call(2, "ping", "{}").toCompletableFuture().join().statusCode());
+            assertEquals(
+                    200,
+                    client.call(2, "ping", "{}").toCompletableFuture().join().statusCode());
         }
     }
 
@@ -60,9 +61,7 @@ class MCPClientTest {
             client.initialize().toCompletableFuture().join();
 
             final var response = client.post("""
-                            {"jsonrpc": "2.0", "id": 2, "method": "ping", "params": {}}""")
-                    .toCompletableFuture()
-                    .join();
+                            {"jsonrpc": "2.0", "id": 2, "method": "ping", "params": {}}""").toCompletableFuture().join();
 
             assertJsonEquals("""
                     {"jsonrpc": "2.0", "id": 2, "result": {}}""", response.body());
@@ -70,23 +69,37 @@ class MCPClientTest {
     }
 
     @Test
-    void objectParamsAreSerialized(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http,
-                                   @Fusion final JsonMapper jsonMapper) {
+    void objectParamsAreSerialized(
+            @Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final JsonMapper jsonMapper) {
         try (final var client = new MCPClient(mcpEndpoint, http, jsonMapper)) {
-            client.initialize(Map.of("sampling", Map.of())).toCompletableFuture().join();
+            client.initialize(Map.of("sampling", Map.of()))
+                    .toCompletableFuture()
+                    .join();
 
             // a plain map and a @JsonModel record, both serialized by the mapper
-            assertJsonEquals("""
+            assertJsonEquals(
+                    """
                             {"jsonrpc": "2.0", "id": 2, "result": {}}""",
-                    client.call(2, "ping", Map.of()).toCompletableFuture().join().body());
-            assertJsonEquals("""
+                    client.call(2, "ping", Map.of())
+                            .toCompletableFuture()
+                            .join()
+                            .body());
+            assertJsonEquals(
+                    """
                             {"jsonrpc": "2.0", "id": 3, "result": {}}""",
-                    client.call(3, "ping", MetadataParameters.EMPTY).toCompletableFuture().join().body());
+                    client.call(3, "ping", MetadataParameters.EMPTY)
+                            .toCompletableFuture()
+                            .join()
+                            .body());
 
             // logging/setLevel is a request, not a notification, so it must answer an empty result
-            assertJsonEquals("""
+            assertJsonEquals(
+                    """
                             {"jsonrpc": "2.0", "id": 4, "result": {}}""",
-                    client.call(4, "logging/setLevel", Map.of("level", "debug")).toCompletableFuture().join().body());
+                    client.call(4, "logging/setLevel", Map.of("level", "debug"))
+                            .toCompletableFuture()
+                            .join()
+                            .body());
         }
     }
 
@@ -111,16 +124,14 @@ class MCPClientTest {
 
             // nothing is pending so it is ignored, but the transport must still accept it
             final var response = client.respond(1234, """
-                            {"role": "assistant", "model": "test", "content": {"type": "text", "text": "hi"}}""")
-                    .toCompletableFuture()
-                    .join();
+                            {"role": "assistant", "model": "test", "content": {"type": "text", "text": "hi"}}""").toCompletableFuture().join();
             assertEquals(202, response.statusCode());
         }
     }
 
     @Test
-    void readTheSseChannel(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http,
-                           @Fusion final MCPNotifier notifier) {
+    void readTheSseChannel(
+            @Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final MCPNotifier notifier) {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
             client.initialize().toCompletableFuture().join();
             notifier.log(LoggingLevel.warning, "test", "hello sse!");
@@ -136,16 +147,46 @@ class MCPClientTest {
                               "jsonrpc": "2.0",
                               "method": "notifications/message",
                               "params": {"level": "warning", "logger": "test", "data": "hello sse!"}
-                            }""",
-                    message);
+                            }""", message);
         }
     }
 
     @Test
     void openSseOnAnUnknownSessionFails(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
         try (final var client = new MCPClient(mcpEndpoint, http).session("i-made-it-up")) {
-            final var error = assertThrows(Exception.class, () -> client.openSse().toCompletableFuture().join());
+            final var error = assertThrows(
+                    Exception.class,
+                    () -> client.openSse().toCompletableFuture().join());
             assertInstanceOf(IllegalStateException.class, error.getCause() == null ? error : error.getCause());
+        }
+    }
+
+    @Test
+    void aNullBodyIsSentAsTheJsonNullLiteral(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            // no mapper needed for that one, so it must not ask for one
+            final var res = client.post(null).toCompletableFuture().join();
+
+            assertEquals(200, res.statusCode());
+            assertTrue(res.body().contains("Empty request"), res.body());
+        }
+    }
+
+    @Test
+    void readingAnEndedStreamFails(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize().toCompletableFuture().join();
+            final var stream = client.openSse().toCompletableFuture().join();
+            client.terminate().toCompletableFuture().join(); // the server completes the stream
+
+            // the stream ended without any message, which must fail the read instead of hanging
+            final var error = assertThrows(
+                    java.util.concurrent.ExecutionException.class,
+                    () -> client.nextMessage(stream)
+                            .toCompletableFuture()
+                            .get(5, java.util.concurrent.TimeUnit.SECONDS));
+
+            assertInstanceOf(java.util.NoSuchElementException.class, error.getCause());
         }
     }
 
@@ -155,7 +196,9 @@ class MCPClientTest {
             client.initialize().toCompletableFuture().join();
 
             assertEquals(204, client.terminate().toCompletableFuture().join().statusCode());
-            assertEquals(404, client.call(2, "ping", "{}").toCompletableFuture().join().statusCode());
+            assertEquals(
+                    404,
+                    client.call(2, "ping", "{}").toCompletableFuture().join().statusCode());
         }
     }
 }

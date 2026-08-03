@@ -18,7 +18,6 @@ package io.yupiik.fusion.mcp.model;
 import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
-
 import java.util.Base64;
 
 /**
@@ -33,23 +32,25 @@ import java.util.Base64;
  */
 @JsonModel
 public record ResourceContents(
-        @Property(documentation = "Optional free form metadata.")
-        @JsonProperty("_meta") Metadata metadata,
-        @Property(documentation = "Uri of the resource.")
-        String uri,
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
+        @Property(documentation = "Uri of the resource.") String uri,
 
         @Property(documentation = "Mime type of the content.")
         String mimeType,
+
         @Property(documentation = "The content when it is textual, exclusive with blob.")
         String text,
+
         @Property(documentation = "The base64 encoded content when it is binary, exclusive with text.")
-        String blob
-) {
+        String blob) {
     public static ResourceContents text(final String uri, final String mimeType, final String text) {
         return text(null, uri, mimeType, text);
     }
 
-    public static ResourceContents text(final Metadata metadata, final String uri, final String mimeType, final String text) {
+    public static ResourceContents text(
+            final Metadata metadata, final String uri, final String mimeType, final String text) {
         return new ResourceContents(metadata, uri, mimeType, text, null);
     }
 
@@ -57,7 +58,9 @@ public record ResourceContents(
         return blob(null, uri, mimeType, content);
     }
 
-    public static ResourceContents blob(final Metadata metadata, final String uri, final String mimeType, final byte[] content) {
-        return new ResourceContents(metadata, uri, mimeType, null, Base64.getEncoder().encodeToString(content));
+    public static ResourceContents blob(
+            final Metadata metadata, final String uri, final String mimeType, final byte[] content) {
+        return new ResourceContents(
+                metadata, uri, mimeType, null, Base64.getEncoder().encodeToString(content));
     }
 }

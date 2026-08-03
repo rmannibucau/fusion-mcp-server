@@ -34,23 +34,29 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
  */
 @JsonModel
 public record Resource(
-        @Property(documentation = "Optional free form metadata.")
-        @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
         @Property(documentation = "Optional hints for the client.")
         Annotations annotations,
+
         @Property(documentation = "What the resource contains.")
         String description,
+
         @Property(documentation = "Mime type of the resource, when known.")
         String mimeType,
+
         @Property(documentation = "Programmatic name of the resource.")
         String name,
+
         @Property(documentation = "Human oriented name of the resource.")
         String title,
+
         @Property(documentation = "Uri of the resource, what resources/read takes.")
         String uri,
+
         @Property(documentation = "Size in bytes, when known.")
-        Long size
-) {
+        Long size) {
     public static Resource of(final String uri, final String name, final String mimeType, final String description) {
         return new Resource(null, null, description, mimeType, name, name, uri, null);
     }

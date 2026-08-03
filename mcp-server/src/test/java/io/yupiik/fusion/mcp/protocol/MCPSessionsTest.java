@@ -15,15 +15,6 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
-import io.yupiik.fusion.json.JsonMapper;
-import io.yupiik.fusion.mcp.configuration.MCPConfiguration;
-import io.yupiik.fusion.mcp.test.StubRequest;
-import io.yupiik.fusion.testing.Fusion;
-import io.yupiik.fusion.testing.FusionSupport;
-import org.junit.jupiter.api.Test;
-
-import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -31,6 +22,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.yupiik.fusion.json.JsonMapper;
+import io.yupiik.fusion.mcp.configuration.MCPConfiguration;
+import io.yupiik.fusion.mcp.test.Loggers;
+import io.yupiik.fusion.mcp.test.StubRequest;
+import io.yupiik.fusion.testing.Fusion;
+import io.yupiik.fusion.testing.FusionSupport;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
 
 /**
  * The session registry: creation, lookup, expiration and how a call is bound to its session.
@@ -165,8 +165,32 @@ class MCPSessionsTest {
         assertTrue(session.sse().isClosed());
     }
 
+    @Test
+    void expirationIsDisabledWithANegativeTimeout(@Fusion final JsonMapper jsons) {
+        final var registry = sessions(jsons, -1);
+        final var session = registry.create();
+
+        registry.evictExpired();
+
+        assertTrue(registry.find(session.id()).isPresent());
+    }
+
+    @Test
+    void whatIsDroppedAndEvictedIsLogged(@Fusion final JsonMapper jsons) throws Exception {
+        final var registry = sessions(jsons, 1);
+        final var dropped = registry.create();
+        final var expiring = registry.create();
+
+        Loggers.atFinest(MCPSessions.class, () -> assertTrue(registry.drop(dropped.id())));
+
+        Thread.sleep(1_100);
+        Loggers.atFinest(MCPSessions.class, registry::evictExpired);
+
+        assertFalse(registry.sessions().contains(expiring));
+    }
+
     private MCPSessions sessions(final JsonMapper jsons, final int sessionTimeout) {
-        return new MCPSessions(jsons, new MCPConfiguration(
-                "test", "Test", "1.0.0", "instructions", sessionTimeout, 5, false));
+        return new MCPSessions(
+                jsons, new MCPConfiguration("test", "Test", "1.0.0", "instructions", sessionTimeout, 5, false));
     }
 }

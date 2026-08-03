@@ -15,20 +15,19 @@
  */
 package io.yupiik.fusion.mcp.demo;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import io.yupiik.fusion.mcp.model.ListPromptsResponse;
 import io.yupiik.fusion.mcp.model.ListToolsResponse;
 import io.yupiik.fusion.mcp.service.DescriptorService;
 import io.yupiik.fusion.mcp.service.OpenRpcService;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
 import java.util.Set;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 /**
  * Checks the descriptors are built from <b>all</b> the OpenRPC documents of the classpath, this module having one and
@@ -49,10 +48,14 @@ class DescriptorsTest {
     void onlyFlaggedMethodsAreExposed(@Fusion final DescriptorService descriptors) {
         assertEquals(
                 List.of("demo/ask", "demo/confirm", "demo/greet", "demo/log", "demo/roots", "demo/search", "demo/tool"),
-                descriptors.tools().tools().stream().map(ListToolsResponse.Tool::name).toList());
+                descriptors.tools().tools().stream()
+                        .map(ListToolsResponse.Tool::name)
+                        .toList());
         assertEquals(
                 List.of("demo/prompt"),
-                descriptors.prompts().prompts().stream().map(ListPromptsResponse.Prompt::name).toList());
+                descriptors.prompts().prompts().stream()
+                        .map(ListPromptsResponse.Prompt::name)
+                        .toList());
 
         assertTrue(descriptors.isTool("demo/tool"));
         assertFalse(descriptors.isTool("demo/prompt"), "a prompt must not be callable as a tool");

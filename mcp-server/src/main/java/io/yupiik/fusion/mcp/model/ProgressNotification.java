@@ -30,11 +30,12 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 public record ProgressNotification(
         @Property(documentation = "The token the peer sent in the originating request, a string or a number.")
         Object progressToken,
+
         @Property(documentation = "How much of the work is done, it must increase on every notification.")
         Double progress,
+
         @Property(documentation = "Total amount of work, when known.")
         Double total,
+
         @Property(documentation = "Human oriented description of the current step.")
-        String message
-) {
-}
+        String message) {}

@@ -15,6 +15,9 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
+import static java.util.Optional.ofNullable;
+import static java.util.logging.Level.FINEST;
+
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.jsonrpc.JsonRpcException;
 import io.yupiik.fusion.mcp.model.Capabilities;
@@ -30,7 +33,6 @@ import io.yupiik.fusion.mcp.model.MessageNotification;
 import io.yupiik.fusion.mcp.model.MetadataParameters;
 import io.yupiik.fusion.mcp.model.ProgressNotification;
 import io.yupiik.fusion.mcp.model.ResourceUpdatedNotification;
-
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
@@ -40,9 +42,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
-
-import static java.util.Optional.ofNullable;
-import static java.util.logging.Level.FINEST;
 
 /**
  * The state of a MCP connection: the negotiated protocol version, what the client can do, the logging level it
@@ -146,8 +145,7 @@ public class MCPSession {
      * @return {@code true} when the session was not used for more than {@code timeout}.
      */
     public boolean isExpired(final Duration timeout) {
-        return !timeout.isZero() && !timeout.isNegative() &&
-                System.nanoTime() - lastAccess > timeout.toNanos();
+        return !timeout.isZero() && !timeout.isNegative() && System.nanoTime() - lastAccess > timeout.toNanos();
     }
 
     void onInitialize(final String protocolVersion, final Capabilities capabilities, final ClientInfo clientInfo) {
@@ -278,8 +276,7 @@ public class MCPSession {
             pendingRequests.remove(requestId);
             throw re;
         }
-        return promise
-                .orTimeout(requestTimeout.toMillis(), TimeUnit.MILLISECONDS)
+        return promise.orTimeout(requestTimeout.toMillis(), TimeUnit.MILLISECONDS)
                 .whenComplete((ok, ko) -> pendingRequests.remove(requestId))
                 .thenApply(result -> map(result, resultType));
     }
@@ -302,7 +299,8 @@ public class MCPSession {
             promise.completeExceptionally(new JsonRpcException(
                     error.get("code") instanceof Number code ? code.intValue() : -32603,
                     String.valueOf(error.getOrDefault("message", "Client error")),
-                    error.get("data"), null));
+                    error.get("data"),
+                    null));
         } else {
             promise.complete(result);
         }
@@ -314,8 +312,9 @@ public class MCPSession {
      */
     public void close() {
         sse.cancel();
-        pendingRequests.values().forEach(it -> it.completeExceptionally(
-                new JsonRpcException(-32001, "Session '" + id + "' closed")));
+        pendingRequests
+                .values()
+                .forEach(it -> it.completeExceptionally(new JsonRpcException(-32001, "Session '" + id + "' closed")));
         pendingRequests.clear();
         subscriptions.clear();
     }
@@ -333,9 +332,15 @@ public class MCPSession {
 
     private void requireClientCapability(final Object capability, final String name) {
         if (capability == null) {
-            throw new JsonRpcException(-32601, "Client does not support '" + name + "'", Map.of(
-                    "capability", name,
-                    "client", ofNullable(clientInfo).map(ClientInfo::name).orElse("?")), null);
+            throw new JsonRpcException(
+                    -32601,
+                    "Client does not support '" + name + "'",
+                    Map.of(
+                            "capability",
+                            name,
+                            "client",
+                            ofNullable(clientInfo).map(ClientInfo::name).orElse("?")),
+                    null);
         }
     }
 }

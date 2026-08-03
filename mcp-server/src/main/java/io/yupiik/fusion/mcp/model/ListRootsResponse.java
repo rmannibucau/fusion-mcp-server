@@ -18,7 +18,6 @@ package io.yupiik.fusion.mcp.model;
 import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
-
 import java.util.List;
 
 /**
@@ -26,18 +25,18 @@ import java.util.List;
  */
 @JsonModel
 public record ListRootsResponse(
-        @Property(documentation = "Optional free form metadata.")
-        @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
         @Property(documentation = "The locations the client gives access to.")
-        List<Root> roots
-) {
+        List<Root> roots) {
     @JsonModel
     public record Root(
             @JsonProperty("_meta") Metadata metadata,
+
             @Property(documentation = "Human oriented name of the root.")
             String name,
+
             @Property(documentation = "Uri of the root, generally a file:// one.")
-            String uri
-    ) {
-    }
+            String uri) {}
 }

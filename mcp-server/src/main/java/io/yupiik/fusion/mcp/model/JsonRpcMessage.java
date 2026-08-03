@@ -31,15 +31,13 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
  */
 @JsonModel
 public record JsonRpcMessage(
-        @Property(documentation = "Always 2.0.")
-        String jsonrpc,
+        @Property(documentation = "Always 2.0.") String jsonrpc,
+
         @Property(documentation = "Request identifier, absent for a notification.")
         Long id,
-        @Property(documentation = "The invoked method.")
-        String method,
-        @Property(documentation = "The method parameters.")
-        Object params
-) {
+
+        @Property(documentation = "The invoked method.") String method,
+        @Property(documentation = "The method parameters.") Object params) {
     public static JsonRpcMessage notification(final String method, final Object params) {
         return new JsonRpcMessage("2.0", null, method, params);
     }

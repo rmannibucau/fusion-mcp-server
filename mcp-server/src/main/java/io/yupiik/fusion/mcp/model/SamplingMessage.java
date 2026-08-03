@@ -25,7 +25,5 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 public record SamplingMessage(
         @Property(documentation = "Who the message comes from.")
         Role role,
-        @Property(documentation = "The message content.")
-        Content content
-) {
-}
+
+        @Property(documentation = "The message content.") Content content) {}

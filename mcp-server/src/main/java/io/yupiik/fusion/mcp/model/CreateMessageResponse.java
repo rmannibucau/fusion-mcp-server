@@ -24,15 +24,17 @@ import io.yupiik.fusion.framework.build.api.json.JsonProperty;
  */
 @JsonModel
 public record CreateMessageResponse(
-        @Property(documentation = "Optional free form metadata.")
-        @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
         @Property(documentation = "What the model answered.")
         Content content,
+
         @Property(documentation = "Identifier of the model which answered.")
         String model,
+
         @Property(documentation = "Who the message comes from, assistant for a model answer.")
         Role role,
+
         @Property(documentation = "Why the generation stopped: endTurn, stopSequence, maxTokens or a provider value.")
-        String stopReason
-) {
-}
+        String stopReason) {}

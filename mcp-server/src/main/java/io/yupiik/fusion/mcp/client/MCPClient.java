@@ -15,9 +15,12 @@
  */
 package io.yupiik.fusion.mcp.client;
 
+import static java.net.http.HttpResponse.BodyHandlers.ofInputStream;
+import static java.net.http.HttpResponse.BodyHandlers.ofString;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.mcp.protocol.MCPProtocol;
-
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
@@ -30,10 +33,6 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-
-import static java.net.http.HttpResponse.BodyHandlers.ofInputStream;
-import static java.net.http.HttpResponse.BodyHandlers.ofString;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * A minimal MCP client for the streamable HTTP transport: it drives a MCP server, which is what testing your own
@@ -158,10 +157,8 @@ public class MCPClient implements AutoCloseable {
      * @return the server response.
      */
     public CompletionStage<HttpResponse<String>> notify(final String method, final Object params) {
-        return post(params == null ?
-                """
-                        {"jsonrpc": "2.0", "method": "%s"}""".formatted(method) :
-                """
+        return post(params == null ? """
+                        {"jsonrpc": "2.0", "method": "%s"}""".formatted(method) : """
                         {"jsonrpc": "2.0", "method": "%s", "params": %s}""".formatted(method, body(params)));
     }
 
@@ -203,25 +200,22 @@ public class MCPClient implements AutoCloseable {
     public CompletionStage<Iterator<String>> openSse(final String lastEventId) {
         close(); // at most one stream at a time, else the abandoned one is written to until the socket breaks
 
-        final var builder = HttpRequest.newBuilder(endpoint)
-                .GET()
-                .header("accept", "text/event-stream");
+        final var builder = HttpRequest.newBuilder(endpoint).GET().header("accept", "text/event-stream");
         if (lastEventId != null) {
             builder.header(MCPProtocol.LAST_EVENT_ID_HEADER, lastEventId);
         }
         withSession(builder);
         // an input stream and not ofLines(): closing it cancels the exchange, which is what abandoning a stream
         // requires - else the connection stays busy and the next request waits for it
-        return http.sendAsync(builder.build(), ofInputStream())
-                .thenApply(response -> {
-                    if (response.statusCode() != 200) {
-                        quietClose(response.body());
-                        throw new IllegalStateException("Can't open the SSE stream: HTTP " + response.statusCode());
-                    }
-                    final var reader = new BufferedReader(new InputStreamReader(response.body(), UTF_8));
-                    sse = reader;
-                    return reader.lines().iterator();
-                });
+        return http.sendAsync(builder.build(), ofInputStream()).thenApply(response -> {
+            if (response.statusCode() != 200) {
+                quietClose(response.body());
+                throw new IllegalStateException("Can't open the SSE stream: HTTP " + response.statusCode());
+            }
+            final var reader = new BufferedReader(new InputStreamReader(response.body(), UTF_8));
+            sse = reader;
+            return reader.lines().iterator();
+        });
     }
 
     /**
@@ -290,9 +284,8 @@ public class MCPClient implements AutoCloseable {
             return charSequence.toString();
         }
         if (jsonMapper == null) {
-            throw new IllegalStateException(
-                    "No JsonMapper set, pass one to the constructor to send a '" + body.getClass().getName() +
-                            "' or pass its JSON as a String");
+            throw new IllegalStateException("No JsonMapper set, pass one to the constructor to send a '"
+                    + body.getClass().getName() + "' or pass its JSON as a String");
         }
         return jsonMapper.toString(body);
     }

@@ -22,7 +22,6 @@ import io.yupiik.fusion.mcp.model.ReadResourceResponse;
 import io.yupiik.fusion.mcp.model.Resource;
 import io.yupiik.fusion.mcp.model.ResourceContents;
 import io.yupiik.fusion.mcp.model.ResourceTemplate;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -47,7 +46,8 @@ public class DemoResources implements MCPResources {
 
     @Override
     public List<ResourceTemplate> resourceTemplates() {
-        return List.of(ResourceTemplate.of(ECHO_PREFIX + "{message}", "echo", "text/plain", "Echoes the message of the uri."));
+        return List.of(
+                ResourceTemplate.of(ECHO_PREFIX + "{message}", "echo", "text/plain", "Echoes the message of the uri."));
     }
 
     @Override

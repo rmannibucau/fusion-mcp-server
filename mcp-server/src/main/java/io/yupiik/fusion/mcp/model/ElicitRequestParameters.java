@@ -28,7 +28,6 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 public record ElicitRequestParameters(
         @Property(documentation = "What to show to the user.")
         String message,
+
         @Property(documentation = "A flat object schema - primitive properties only - describing the expected answer.")
-        JsonSchema requestedSchema
-) {
-}
+        JsonSchema requestedSchema) {}

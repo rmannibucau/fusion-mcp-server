@@ -21,5 +21,4 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 @JsonModel
 public record DemoResponse(
         @Property(documentation = "What the tool has to say, a plain sentence.")
-        String something) {
-}
+        String something) {}

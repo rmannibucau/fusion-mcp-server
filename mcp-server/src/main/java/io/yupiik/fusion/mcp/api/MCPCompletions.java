@@ -19,7 +19,6 @@ import io.yupiik.fusion.mcp.model.CompleteResult;
 import io.yupiik.fusion.mcp.model.CompletionArgument;
 import io.yupiik.fusion.mcp.model.CompletionContext;
 import io.yupiik.fusion.mcp.model.CompletionRef;
-
 import java.util.List;
 
 /**

@@ -22,5 +22,7 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
  */
 @JsonModel
 public enum SamplingServer {
-    allServers, none, thisServer
+    allServers,
+    none,
+    thisServer
 }

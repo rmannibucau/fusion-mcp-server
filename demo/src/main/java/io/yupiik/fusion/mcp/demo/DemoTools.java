@@ -15,6 +15,9 @@
  */
 package io.yupiik.fusion.mcp.demo;
 
+import static io.yupiik.fusion.mcp.model.Content.text;
+import static java.util.stream.Collectors.joining;
+
 import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
@@ -35,13 +38,9 @@ import io.yupiik.fusion.mcp.model.PromptResponse;
 import io.yupiik.fusion.mcp.model.Role;
 import io.yupiik.fusion.mcp.model.SamplingMessage;
 import io.yupiik.fusion.mcp.protocol.MCPSessions;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
-
-import static io.yupiik.fusion.mcp.model.Content.text;
-import static java.util.stream.Collectors.joining;
 
 /**
  * A tour of what a MCP server built with Fusion looks like: tools, a prompt, a tool failure, a log record and a
@@ -65,8 +64,9 @@ public class DemoTools {
 
     @MCPTool
     @JsonRpc(value = "demo/greet", documentation = "Greets someone by name.")
-    public DemoResponse greet(@JsonRpcParam(required = true, documentation = "Who to greet.") final String name,
-                              @JsonRpcParam(documentation = "How many times to greet, defaults to 1.") final Integer times) {
+    public DemoResponse greet(
+            @JsonRpcParam(required = true, documentation = "Who to greet.") final String name,
+            @JsonRpcParam(documentation = "How many times to greet, defaults to 1.") final Integer times) {
         if (name.isBlank()) {
             // any exception becomes a tool failure the model can read - isError=true - and not a protocol error
             throw new IllegalArgumentException("name should not be blank");
@@ -87,14 +87,22 @@ public class DemoTools {
      */
     @MCPTool
     @JsonRpc(value = "demo/ask", documentation = "Asks the client model to answer a question.")
-    public CompletionStage<Demo> ask(@JsonRpcParam(required = true, documentation = "The question to forward to the client model.") final String question,
-                                    final Request request) {
+    public CompletionStage<Demo> ask(
+            @JsonRpcParam(required = true, documentation = "The question to forward to the client model.")
+                    final String question,
+            final Request request) {
         return sessions.of(request)
                 .createMessage(new CreateSamplingMessageParameters(
-                        null, 512,
+                        null,
+                        512,
                         List.of(new SamplingMessage(Role.user, text(question))),
-                        null, null, null, "You are a demo assistant.", null))
-                .thenApply(response -> new Demo(response.content() == null ? null : response.content().text()));
+                        null,
+                        null,
+                        null,
+                        "You are a demo assistant.",
+                        null))
+                .thenApply(response -> new Demo(
+                        response.content() == null ? null : response.content().text()));
     }
 
     /**
@@ -103,8 +111,9 @@ public class DemoTools {
      */
     @MCPTool
     @JsonRpc(value = "demo/confirm", documentation = "Asks the user to confirm an action.")
-    public CompletionStage<Demo> confirm(@JsonRpcParam(required = true, documentation = "What has to be confirmed.") final String action,
-                                        final Request request) {
+    public CompletionStage<Demo> confirm(
+            @JsonRpcParam(required = true, documentation = "What has to be confirmed.") final String action,
+            final Request request) {
         return sessions.of(request)
                 .elicit(new ElicitRequestParameters(
                         "Really " + action + "?",
@@ -112,11 +121,12 @@ public class DemoTools {
                                 "Confirmation",
                                 Map.of("confirm", JsonSchema.bool("Confirm the action?")),
                                 List.of("confirm"))))
-                .thenApply(response -> new Demo(switch (response.action()) {
-                    case accept -> "confirmed: " + response.content().get("confirm");
-                    case decline -> "declined";
-                    case cancel -> "cancelled";
-                }));
+                .thenApply(response -> new Demo(
+                        switch (response.action()) {
+                            case accept -> "confirmed: " + response.content().get("confirm");
+                            case decline -> "declined";
+                            case cancel -> "cancelled";
+                        }));
     }
 
     /**
@@ -127,9 +137,12 @@ public class DemoTools {
     public CompletionStage<DemoResponse> roots(final Request request) {
         return sessions.of(request)
                 .listRoots()
-                .thenApply(response -> new DemoResponse(response.roots() == null ?
-                        "" :
-                        response.roots().stream().map(ListRootsResponse.Root::uri).collect(joining(", "))));
+                .thenApply(response -> new DemoResponse(
+                        response.roots() == null
+                                ? ""
+                                : response.roots().stream()
+                                        .map(ListRootsResponse.Root::uri)
+                                        .collect(joining(", "))));
     }
 
     /**
@@ -138,25 +151,31 @@ public class DemoTools {
      */
     @MCPTool
     @JsonRpc(value = "demo/search", documentation = "Searches the demo catalog.")
-    public DemoResponse search(@JsonRpcParam(required = true, documentation = "The query.") final Query query,
-                               @JsonRpcParam(documentation = "Tags to filter on.") final List<String> tags,
-                               @JsonRpcParam(documentation = "Extra options.") final Map<String, String> options,
-                               @JsonRpcParam(documentation = "How many results at most.") final int limit,
-                               @JsonRpcParam(documentation = "Sort direction.") final Direction direction) {
-        return new DemoResponse(
-                query.text() + '/' + (tags == null ? 0 : tags.size()) + '/' +
-                        (options == null ? 0 : options.size()) + '/' + limit + '/' + direction);
+    public DemoResponse search(
+            @JsonRpcParam(required = true, documentation = "The query.") final Query query,
+            @JsonRpcParam(documentation = "Tags to filter on.") final List<String> tags,
+            @JsonRpcParam(documentation = "Extra options.") final Map<String, String> options,
+            @JsonRpcParam(documentation = "How many results at most.") final int limit,
+            @JsonRpcParam(documentation = "Sort direction.") final Direction direction) {
+        return new DemoResponse(query.text()
+                + '/'
+                + (tags == null ? 0 : tags.size())
+                + '/'
+                + (options == null ? 0 : options.size())
+                + '/'
+                + limit
+                + '/'
+                + direction);
     }
 
     @MCPPrompt
     @JsonRpc(value = "demo/prompt", documentation = "Demo.")
-    public PromptResponse demoPrompt(@JsonRpcParam(documentation = "The code to inject in the prompt.") final String code) {
+    public PromptResponse demoPrompt(
+            @JsonRpcParam(documentation = "The code to inject in the prompt.") final String code) {
         return new PromptResponse(
                 null,
                 "hello fusion!",
-                List.of(new PromptResponse.Message(
-                        Role.user,
-                        text("hello sir! your code is <" + code + '>'))));
+                List.of(new PromptResponse.Message(Role.user, text("hello sir! your code is <" + code + '>'))));
     }
 
     /**
@@ -169,11 +188,11 @@ public class DemoTools {
             String text,
 
             @Property(documentation = "Should approximate matches be returned too.")
-            boolean fuzzy) {
-    }
+            boolean fuzzy) {}
 
     @JsonModel
     public enum Direction {
-        asc, desc
+        asc,
+        desc
     }
 }

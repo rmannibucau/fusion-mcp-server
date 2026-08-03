@@ -18,26 +18,39 @@ package io.yupiik.fusion.mcp.test;
 import io.yupiik.fusion.http.server.api.Body;
 import io.yupiik.fusion.http.server.api.Cookie;
 import io.yupiik.fusion.http.server.api.Request;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * A {@link Request} with just enough behavior - headers and attributes - to unit test what only needs those.
+ * A {@link Request} with just enough behavior - headers, attributes and an in memory body - to unit test what only
+ * needs those.
  */
 public class StubRequest implements Request {
     private final Map<String, String> headers;
     private final Map<String, Object> attributes = new HashMap<>();
+    private final String body;
 
     public StubRequest() {
         this(Map.of());
     }
 
     public StubRequest(final Map<String, String> headers) {
+        this(headers, null);
+    }
+
+    /**
+     * @param headers the request headers, matched case insensitively.
+     * @param body    the payload {@link #fullBody()} serves, {@code null} to make it fail like a broken connection.
+     */
+    public StubRequest(final Map<String, String> headers, final String body) {
         this.headers = headers.entrySet().stream()
-                .collect(HashMap::new, (map, entry) -> map.put(entry.getKey().toLowerCase(java.util.Locale.ROOT), entry.getValue()), HashMap::putAll);
+                .collect(
+                        HashMap::new,
+                        (map, entry) -> map.put(entry.getKey().toLowerCase(java.util.Locale.ROOT), entry.getValue()),
+                        HashMap::putAll);
+        this.body = body;
     }
 
     @Override
@@ -62,7 +75,10 @@ public class StubRequest implements Request {
 
     @Override
     public Body fullBody() {
-        throw new UnsupportedOperationException("no body in this stub");
+        if (body == null) {
+            throw new UnsupportedOperationException("no body in this stub");
+        }
+        return new StubBody(body);
     }
 
     @Override
@@ -88,7 +104,10 @@ public class StubRequest implements Request {
     @Override
     public Map<String, List<String>> headers() {
         return headers.entrySet().stream()
-                .collect(HashMap::new, (map, entry) -> map.put(entry.getKey(), List.of(entry.getValue())), HashMap::putAll);
+                .collect(
+                        HashMap::new,
+                        (map, entry) -> map.put(entry.getKey(), List.of(entry.getValue())),
+                        HashMap::putAll);
     }
 
     @Override

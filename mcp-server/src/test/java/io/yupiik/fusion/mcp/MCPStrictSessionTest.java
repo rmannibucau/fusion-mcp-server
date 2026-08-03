@@ -15,18 +15,17 @@
  */
 package io.yupiik.fusion.mcp;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import io.yupiik.fusion.mcp.client.MCPClient;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
+import java.net.URI;
+import java.net.http.HttpClient;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-
-import java.net.URI;
-import java.net.http.HttpClient;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * {@code fusion.mcp.requireSession=true}: the stricter reading of the specification, where a client ignoring the
@@ -68,7 +67,8 @@ class MCPStrictSessionTest {
     @Test
     void statelessClientIsRefused(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
-            final var res = client.call(1, "tools/list", "{}").toCompletableFuture().join();
+            final var res =
+                    client.call(1, "tools/list", "{}").toCompletableFuture().join();
 
             assertEquals(400, res.statusCode());
             assertTrue(res.body().contains("Missing mcp-session-id header"), res.body());
@@ -80,14 +80,24 @@ class MCPStrictSessionTest {
         try (final var client = new MCPClient(mcpEndpoint, http)) {
             client.initialize().toCompletableFuture().join();
 
-            assertEquals(200, client.call(2, "tools/list", "{}").toCompletableFuture().join().statusCode());
+            assertEquals(
+                    200,
+                    client.call(2, "tools/list", "{}")
+                            .toCompletableFuture()
+                            .join()
+                            .statusCode());
         }
     }
 
     @Test
     void anUnknownSessionIsStillA404(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
         try (final var client = new MCPClient(mcpEndpoint, http).session("i-made-it-up")) {
-            assertEquals(404, client.call(1, "tools/list", "{}").toCompletableFuture().join().statusCode());
+            assertEquals(
+                    404,
+                    client.call(1, "tools/list", "{}")
+                            .toCompletableFuture()
+                            .join()
+                            .statusCode());
         }
     }
 }
