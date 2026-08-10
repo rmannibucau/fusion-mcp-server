@@ -19,6 +19,7 @@ import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * A MCP content block, i.e. the union of all content types a tool, a prompt or a sampling message can carry.
@@ -62,18 +63,37 @@ public record Content(
         String description,
 
         @Property(documentation = "Size of the linked resource in bytes, when known.")
-        Long size) {
+        Long size,
+        // type=tool_use
+        @Property(documentation = "The unique identifier of the tool use, for a tool_use block.")
+        String id,
+        // type=tool_use
+        @Property(documentation = "The arguments of the tool call, for a tool_use block.")
+        Object input,
+        // type=tool_result
+        @Property(documentation = "The identifier of the tool_use this result answers, for a tool_result block.")
+        String toolUseId,
+        // type=tool_result
+        @Property(documentation = "Set when the tool call failed, for a tool_result block.")
+        Boolean isError,
+        // type=tool_result
+        @Property(documentation = "The result blocks, for a tool_result block.")
+        List<Content> content) {
     @JsonModel
     public enum Type {
         text,
         image,
         audio,
         resource_link,
-        resource
+        resource,
+        tool_use,
+        tool_result
     }
 
     public static Content text(final String text) {
-        return new Content(null, null, Type.text, text, null, null, null, null, null, null, null, null);
+        return new Content(
+                null, null, Type.text, text, null, null, null, null, null, null, null, null, null, null, null, null,
+                null);
     }
 
     public static Content image(final String mimeType, final byte[] content) {
@@ -84,6 +104,11 @@ public record Content(
                 null,
                 Base64.getEncoder().encodeToString(content),
                 mimeType,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -105,11 +130,33 @@ public record Content(
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null);
     }
 
     public static Content resource(final ResourceContents resource) {
-        return new Content(null, null, Type.resource, null, null, null, resource, null, null, null, null, null);
+        return new Content(
+                null,
+                null,
+                Type.resource,
+                null,
+                null,
+                null,
+                resource,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     /**
@@ -121,6 +168,76 @@ public record Content(
      * @return the matching content block.
      */
     public static Content resourceLink(final String uri, final String name, final String mimeType) {
-        return new Content(null, null, Type.resource_link, null, null, mimeType, null, uri, name, null, null, null);
+        return new Content(
+                null,
+                null,
+                Type.resource_link,
+                null,
+                null,
+                mimeType,
+                null,
+                uri,
+                name,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    /**
+     * @param id    the identifier the {@code tool_result} will reference.
+     * @param name  the tool name.
+     * @param input the tool arguments.
+     * @return a {@code tool_use} block, as found in sampling messages and agentic conversations.
+     */
+    public static Content toolUse(final String id, final String name, final Object input) {
+        return new Content(
+                null,
+                null,
+                Type.tool_use,
+                null,
+                null,
+                null,
+                null,
+                null,
+                name,
+                null,
+                null,
+                null,
+                id,
+                input,
+                null,
+                null,
+                null);
+    }
+
+    /**
+     * @param toolUseId the {@code toolUseId} of the {@link #toolUse(String, String, Object)} this answers.
+     * @param content   the result blocks.
+     * @return a {@code tool_result} block.
+     */
+    public static Content toolResult(final String toolUseId, final List<Content> content) {
+        return new Content(
+                null,
+                null,
+                Type.tool_result,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                toolUseId,
+                false,
+                content);
     }
 }

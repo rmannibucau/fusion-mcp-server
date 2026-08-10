@@ -18,6 +18,7 @@ package io.yupiik.fusion.mcp.model;
 import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
+import java.util.List;
 
 /**
  * A resource <em>descriptor</em>, i.e. what {@code resources/list} returns.
@@ -56,8 +57,11 @@ public record Resource(
         String uri,
 
         @Property(documentation = "Size in bytes, when known.")
-        Long size) {
+        Long size,
+
+        @Property(documentation = "Optional visual identifiers for the resource.")
+        List<Icon> icons) {
     public static Resource of(final String uri, final String name, final String mimeType, final String description) {
-        return new Resource(null, null, description, mimeType, name, name, uri, null);
+        return new Resource(null, null, description, mimeType, name, name, uri, null, null);
     }
 }

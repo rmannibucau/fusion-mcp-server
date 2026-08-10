@@ -85,7 +85,19 @@ class OpenRpcServiceTest {
         final var world = Map.of("Value", object(Map.of("v", primitive("string"))));
         // a Map<String, Value> parameter: additionalProperties is read as a plain JSON structure
         final var map = new OpenRpc.JsonSchema(
-                null, null, "object", null, null, null, null, null, Map.of("$ref", "#/schemas/Value"), null, null);
+                null,
+                null,
+                null,
+                null,
+                "object",
+                null,
+                null,
+                null,
+                null,
+                null,
+                Map.of("$ref", "#/schemas/Value"),
+                null,
+                null);
 
         final var resolved = service.resolveRefs(world, map);
 
@@ -118,6 +130,8 @@ class OpenRpcServiceTest {
         final var node = new OpenRpc.JsonSchema(
                 null,
                 "Node",
+                null,
+                null,
                 "object",
                 null,
                 null,
@@ -279,6 +293,8 @@ class OpenRpcServiceTest {
         final var declaration = new OpenRpc.JsonSchema(
                 "#/schemas/Self",
                 "#/schemas/Self",
+                null,
+                null,
                 "object",
                 null,
                 null,
@@ -362,18 +378,19 @@ class OpenRpcServiceTest {
     }
 
     private OpenRpc.JsonSchema primitive(final String type) {
-        return new OpenRpc.JsonSchema(null, null, type, true, null, null, null, null, null, null, null);
+        return new OpenRpc.JsonSchema(null, null, null, null, type, true, null, null, null, null, null, null, null);
     }
 
     private OpenRpc.JsonSchema ref(final String ref) {
-        return new OpenRpc.JsonSchema(ref, null, null, null, null, null, null, null, null, null, null);
+        return new OpenRpc.JsonSchema(ref, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private OpenRpc.JsonSchema object(final Map<String, OpenRpc.JsonSchema> properties) {
-        return new OpenRpc.JsonSchema(null, null, "object", null, null, null, null, properties, null, null, null);
+        return new OpenRpc.JsonSchema(
+                null, null, null, null, "object", null, null, null, null, properties, null, null, null);
     }
 
     private OpenRpc.JsonSchema array(final OpenRpc.JsonSchema items) {
-        return new OpenRpc.JsonSchema(null, null, "array", null, null, null, null, null, null, items, null);
+        return new OpenRpc.JsonSchema(null, null, null, null, "array", null, null, null, null, null, null, items, null);
     }
 }

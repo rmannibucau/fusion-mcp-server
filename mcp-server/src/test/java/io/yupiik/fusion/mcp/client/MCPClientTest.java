@@ -17,6 +17,7 @@ package io.yupiik.fusion.mcp.client;
 
 import static io.yupiik.fusion.testing.assertion.JsonAsserts.assertJsonEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -27,6 +28,8 @@ import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.mcp.api.MCPNotifier;
 import io.yupiik.fusion.mcp.model.LoggingLevel;
 import io.yupiik.fusion.mcp.model.MetadataParameters;
+import io.yupiik.fusion.mcp.model.ResultType;
+import io.yupiik.fusion.mcp.protocol.MCPProtocol;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
 import java.net.URI;
@@ -199,6 +202,98 @@ class MCPClientTest {
             assertEquals(
                     404,
                     client.call(2, "ping", "{}").toCompletableFuture().join().statusCode());
+        }
+    }
+
+    @Test
+    void discoverSwitchesToTheStatelessProtocol(
+            @Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final JsonMapper jsonMapper) {
+        try (final var client = new MCPClient(mcpEndpoint, http, jsonMapper)) {
+            assertFalse(client.isStateless());
+
+            final var discovery = client.discover().toCompletableFuture().join();
+
+            assertTrue(client.isStateless(), "discover is the stateless handshake");
+            assertNull(client.session(), "the stateless protocol has no session");
+            assertEquals(MCPProtocol.STATELESS_VERSIONS, discovery.supportedVersions());
+            assertNotNull(discovery.capabilities());
+
+            // from now on the calls carry the stateless version and no session
+            final var response =
+                    client.call(2, "tools/list", "{}").toCompletableFuture().join();
+            assertEquals(200, response.statusCode());
+            assertNull(client.session(), "still no session after the stateless calls");
+            assertTrue(response.body().contains("\"resultType\":\"complete\""), response.body());
+        }
+    }
+
+    @Test
+    void aStatelessReplyIsParsedAsTheResultUnion(
+            @Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final JsonMapper jsonMapper) {
+        try (final var client = new MCPClient(mcpEndpoint, http, jsonMapper)) {
+            final var result = client.result("""
+                        {"jsonrpc": "2.0", "id": 2, "result": {
+                           "resultType": "input_required",
+                           "inputRequests": {
+                             "elicitation/create": {"method": "elicitation/create", "params": {"prompt": "What?"}}
+                           },
+                           "requestState": "tok"
+                        }}""");
+
+            assertEquals(ResultType.input_required, result.resultType());
+            assertEquals(
+                    "elicitation/create",
+                    result.inputRequests().keySet().iterator().next());
+            assertEquals("tok", result.requestState());
+        }
+    }
+
+    @Test
+    void anErrorReplyCannotBeReadAsAResult(@Fusion final JsonMapper jsonMapper) {
+        try (final var client =
+                new MCPClient(URI.create("http://localhost:0"), HttpClient.newHttpClient(), jsonMapper)) {
+            final var error = assertThrows(RuntimeException.class, () -> client.result("""
+                            {"jsonrpc": "2.0", "id": 1, "error": {"code": -32001, "message": "boom"}}"""));
+            assertNotNull(error.getMessage());
+        }
+    }
+
+    @Test
+    void aStatelessCallWithAnExistingMetaIsLeftAlone(
+            @Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final JsonMapper jsonMapper) {
+        // the client only injects _meta when the params have none: a caller-supplied complete envelope wins
+        try (final var client = new MCPClient(mcpEndpoint, http, jsonMapper)) {
+            client.discover().toCompletableFuture().join();
+
+            final var response = client.call(
+                            2,
+                            "tools/list",
+                            "{\"_meta\": {"
+                                    + "\"io.modelcontextprotocol/protocolVersion\": \"2026-07-28\","
+                                    + "\"io.modelcontextprotocol/clientInfo\": {\"name\": \"test\", \"version\": \"1\"},"
+                                    + "\"io.modelcontextprotocol/clientCapabilities\": {},"
+                                    + "\"custom\": true}}")
+                    .toCompletableFuture()
+                    .join();
+
+            assertEquals(200, response.statusCode());
+        }
+    }
+
+    @Test
+    void aStatelessToolCallCarriesTheNameHeader(
+            @Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final JsonMapper jsonMapper) {
+        // a tools/call with a name makes the client emit the Mcp-Name header; an unknown tool is still routed and
+        // answered as a JSON-RPC error (-32602 -> HTTP 400) on the modern transport
+        try (final var client = new MCPClient(mcpEndpoint, http, jsonMapper)) {
+            client.discover().toCompletableFuture().join();
+
+            final var response = client.call(2, "tools/call", "{\"name\": \"nope\", \"arguments\": {}}")
+                    .toCompletableFuture()
+                    .join();
+
+            assertEquals(400, response.statusCode());
+            assertTrue(response.body().contains("Unknown tool 'nope'"), response.body());
         }
     }
 }

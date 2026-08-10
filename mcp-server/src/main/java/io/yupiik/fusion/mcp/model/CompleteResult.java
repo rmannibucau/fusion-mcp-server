@@ -29,7 +29,10 @@ public record CompleteResult(
         Metadata metadata,
 
         @Property(documentation = "The suggestions for the argument being completed.")
-        Completion completion) {
+        Completion completion,
+
+        @Property(documentation = "The type of this result, see the {@code 2026-07-28} specification.")
+        ResultType resultType) {
     @JsonModel
     public record Completion(
             @Property(documentation = "Set when more values exist than the ones returned.")

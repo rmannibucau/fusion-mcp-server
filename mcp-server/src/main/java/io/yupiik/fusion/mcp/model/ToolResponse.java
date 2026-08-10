@@ -32,6 +32,7 @@ import java.util.stream.Stream;
  * @param isError           {@code true} when the tool execution failed - the model is expected to see the error.
  * @param content           the content blocks, they are what a model without structured output support reads.
  * @param structuredContent the structured result, it must match the tool {@code outputSchema} when there is one.
+ * @param resultType        the type of this result ({@code 2026-07-28} only), {@code error} when {@code isError}.
  */
 @JsonModel
 public record ToolResponse(
@@ -45,7 +46,10 @@ public record ToolResponse(
         List<Content> content,
 
         @Property(documentation = "The structured result, it must match the tool outputSchema when there is one.")
-        Object structuredContent) {
+        Object structuredContent,
+
+        @Property(documentation = "The type of this result, see the {@code 2026-07-28} specification.")
+        ResultType resultType) {
     /**
      * Wraps a JSON-RPC result as a tool response, the JSON representation is sent as text content - for models
      * without structured output support - and as {@code structuredContent}.
@@ -55,7 +59,7 @@ public record ToolResponse(
      * @return the matching tool response.
      */
     public static ToolResponse structure(final JsonMapper jsonMapper, final Object data) {
-        return new ToolResponse(null, false, List.of(Content.text(jsonMapper.toString(data))), data);
+        return new ToolResponse(null, false, List.of(Content.text(jsonMapper.toString(data))), data, null);
     }
 
     /**
@@ -63,7 +67,7 @@ public record ToolResponse(
      * @return a successful text only tool response.
      */
     public static ToolResponse text(final String... text) {
-        return new ToolResponse(null, false, Stream.of(text).map(Content::text).toList(), null);
+        return new ToolResponse(null, false, Stream.of(text).map(Content::text).toList(), null, null);
     }
 
     /**
@@ -71,6 +75,6 @@ public record ToolResponse(
      * @return a failed tool response - {@code isError=true}.
      */
     public static ToolResponse error(final String message) {
-        return new ToolResponse(null, true, List.of(Content.text(message)), null);
+        return new ToolResponse(null, true, List.of(Content.text(message)), null, null);
     }
 }

@@ -24,6 +24,7 @@ import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.jsonrpc.JsonRpc;
 import io.yupiik.fusion.framework.build.api.jsonrpc.JsonRpcParam;
 import io.yupiik.fusion.http.server.api.Request;
+import io.yupiik.fusion.mcp.api.MCPIcon;
 import io.yupiik.fusion.mcp.api.MCPNotifier;
 import io.yupiik.fusion.mcp.api.MCPPrompt;
 import io.yupiik.fusion.mcp.api.MCPTool;
@@ -63,6 +64,7 @@ public class DemoTools {
     }
 
     @MCPTool
+    @MCPIcon("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4=")
     @JsonRpc(value = "demo/greet", documentation = "Greets someone by name.")
     public DemoResponse greet(
             @JsonRpcParam(required = true, documentation = "Who to greet.") final String name,
@@ -175,7 +177,8 @@ public class DemoTools {
         return new PromptResponse(
                 null,
                 "hello fusion!",
-                List.of(new PromptResponse.Message(Role.user, text("hello sir! your code is <" + code + '>'))));
+                List.of(new PromptResponse.Message(Role.user, text("hello sir! your code is <" + code + '>'))),
+                null);
     }
 
     /**

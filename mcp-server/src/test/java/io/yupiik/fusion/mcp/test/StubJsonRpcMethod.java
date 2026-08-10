@@ -17,6 +17,7 @@ package io.yupiik.fusion.mcp.test;
 
 import static io.yupiik.fusion.mcp.service.DescriptorService.PROMPT;
 import static io.yupiik.fusion.mcp.service.DescriptorService.TOOL;
+import static io.yupiik.fusion.mcp.service.DescriptorService.TYPE_METADATA;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 
 import io.yupiik.fusion.jsonrpc.impl.JsonRpcMethod;
@@ -56,7 +57,20 @@ public record StubJsonRpcMethod(
     }
 
     public static StubJsonRpcMethod tool(final String name, final Function<Object, CompletionStage<?>> invocation) {
-        return new StubJsonRpcMethod(name, Map.of(DescriptorService.TYPE_METADATA, TOOL), false, invocation);
+        return new StubJsonRpcMethod(name, Map.of(TYPE_METADATA, TOOL), false, invocation);
+    }
+
+    /**
+     * @param name       the tool name.
+     * @param extra      extra metadata next to {@code mcp.type=tool}, e.g. a {@code mcp.icon} source.
+     * @param invocation what the tool does.
+     * @return a tool method carrying {@code extra} bean metadata.
+     */
+    public static StubJsonRpcMethod tool(
+            final String name, final Map<String, String> extra, final Function<Object, CompletionStage<?>> invocation) {
+        final var metadata = new java.util.HashMap<>(Map.of(TYPE_METADATA, "tool"));
+        metadata.putAll(extra);
+        return new StubJsonRpcMethod(name, Map.copyOf(metadata), false, invocation);
     }
 
     public static StubJsonRpcMethod prompt(final String name) {
@@ -83,5 +97,16 @@ public record StubJsonRpcMethod(
     public static StubJsonRpcMethod notification(final String name, final String type) {
         return new StubJsonRpcMethod(
                 name, Map.of(DescriptorService.TYPE_METADATA, type), true, params -> completedFuture(null));
+    }
+
+    /**
+     * @param name       a JSON-RPC method name.
+     * @param invocation what the method does, it gets the {@code params} of the call.
+     * @return a method flagged as an MCP completion, it completes any argument without a {@code ref} binding.
+     */
+    public static StubJsonRpcMethod completion(
+            final String name, final Function<Object, CompletionStage<?>> invocation) {
+        return new StubJsonRpcMethod(
+                name, Map.of(DescriptorService.TYPE_METADATA, DescriptorService.COMPLETION), false, invocation);
     }
 }

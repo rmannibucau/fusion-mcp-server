@@ -42,7 +42,10 @@ public record Capabilities(
         Map<String, Object> elicitation,
 
         @Property(documentation = "Non standard capabilities, keyed by name.")
-        Map<String, Object> experimental) {
+        Map<String, Object> experimental,
+
+        @Property(documentation = "Optional MCP extensions the client supports, keyed by extension identifier.")
+        Map<String, Object> extensions) {
     @JsonModel
     public record Roots(
             @Property(documentation = "Set when the client notifies the server the list changed.")

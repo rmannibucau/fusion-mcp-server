@@ -167,6 +167,31 @@ class MCPSessionsTest {
     }
 
     @Test
+    void aSubscriptionCanBeReachedAndCancelledThroughTheRegistry(@Fusion final JsonMapper jsons) {
+        final var registry = sessions(jsons, 1800);
+        final var session = registry.ephemeral(true);
+
+        assertTrue(registry.subscription("1").isEmpty());
+        registry.registerSubscription(
+                "1", new io.yupiik.fusion.mcp.model.SubscriptionFilter(true, null, null, null), session);
+
+        assertEquals(1, registry.subscriptions().size());
+        assertEquals(session, registry.subscription("1").orElseThrow().session());
+        assertEquals("1", registry.subscription("1").orElseThrow().subscriptionId());
+
+        // a client leaving without cancel leaks nothing: closing the stream drops the subscription
+        session.sse().cancel();
+        assertTrue(registry.subscriptions().isEmpty(), "the onClose hook unregisters the subscription");
+
+        registry.registerSubscription("2", null, session);
+        registry.unregisterSubscription("2");
+        assertTrue(registry.subscription("2").isEmpty());
+
+        registry.close();
+        assertTrue(registry.subscriptions().isEmpty());
+    }
+
+    @Test
     void expirationIsDisabledWithANegativeTimeout(@Fusion final JsonMapper jsons) {
         final var registry = sessions(jsons, -1);
         final var session = registry.create();
@@ -188,6 +213,18 @@ class MCPSessionsTest {
 
     private MCPSessions sessions(final JsonMapper jsons, final int sessionTimeout) {
         return new MCPSessions(
-                jsons, new MCPConfiguration("test", "Test", "1.0.0", "instructions", sessionTimeout, 5, false));
+                jsons,
+                new MCPConfiguration(
+                        "test",
+                        "Test",
+                        "1.0.0",
+                        "instructions",
+                        sessionTimeout,
+                        5,
+                        false,
+                        30000L,
+                        "private",
+                        "",
+                        true));
     }
 }

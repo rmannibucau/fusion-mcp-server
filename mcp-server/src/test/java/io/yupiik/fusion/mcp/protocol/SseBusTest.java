@@ -15,6 +15,7 @@
  */
 package io.yupiik.fusion.mcp.protocol;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.yupiik.fusion.mcp.test.Loggers;
 import io.yupiik.fusion.mcp.test.SseSubscriber;
 import java.util.List;
+import java.util.concurrent.Flow;
 import org.junit.jupiter.api.Test;
 
 class SseBusTest {
@@ -61,6 +63,17 @@ class SseBusTest {
         assertTrue(bus.queued().isEmpty());
         assertTrue(subscriber.messages().get(0).contains("data: {\"a\":1}"));
         assertTrue(subscriber.messages().get(1).contains("data: {\"a\":2}"));
+    }
+
+    @Test
+    void drainingQueuedJsonReturnsOnlyTheMessages() {
+        // what the stateless transport streams before the final result: the buffered JSON, without keep-alives
+        final var bus = new SseBus();
+        bus.publish("{\"a\":1}");
+        bus.publish("{\"a\":2}");
+
+        assertEquals(List.of("{\"a\":1}", "{\"a\":2}"), bus.drainQueuedJson());
+        assertTrue(bus.drainQueuedJson().isEmpty(), "the drained frames are dropped, they are not replayed");
     }
 
     @Test
@@ -315,6 +328,84 @@ class SseBusTest {
         // it cancels from onSubscribe, so the bus has no subscriber left to complete when it notices it is closed
         bus.subscribe(SseSubscriber.cancelling());
 
+        assertTrue(bus.isClosed());
+    }
+
+    @Test
+    void endDeliversTheLastMessageThenCloses() {
+        final var subscriber = SseSubscriber.strict(1);
+        final var bus = new SseBus();
+        bus.subscribe(subscriber);
+
+        bus.end("{\"jsonrpc\":\"2.0\",\"result\":{}}");
+
+        assertEquals(List.of("{\"jsonrpc\":\"2.0\",\"result\":{}}"), subscriber.data());
+        assertTrue(subscriber.isCompleted());
+        assertTrue(bus.isClosed());
+    }
+
+    @Test
+    void onCloseIsInvokedOnceOnCancel() {
+        final var bus = new SseBus();
+        final var notifications = new java.util.concurrent.atomic.AtomicInteger();
+        bus.onClose(notifications::incrementAndGet);
+
+        bus.cancel();
+        bus.cancel(); // idempotent: the hook fires once
+
+        assertEquals(1, notifications.get());
+        assertTrue(bus.isClosed());
+    }
+
+    @Test
+    void cancellingWithoutAnyHookIsSafe() {
+        // no onClose registered: nothing to notify, but closing still works
+        final var bus = new SseBus();
+        assertDoesNotThrow(bus::cancel);
+        assertTrue(bus.isClosed());
+        assertDoesNotThrow(bus::cancel);
+    }
+
+    @Test
+    void aFailingOnCloseHookIsSwallowed() {
+        final var bus = new SseBus();
+        // the owner bug is not the stream's problem: the close still succeeds
+        bus.onClose(() -> {
+            throw new IllegalStateException("the owner blew up");
+        });
+
+        assertDoesNotThrow(bus::cancel);
+        assertTrue(bus.isClosed());
+    }
+
+    @Test
+    void aCompletionFailingSubscriberIsNotClosureDoomForTheBus() {
+        final var bus = new SseBus();
+        final var failing = new Flow.Subscriber<java.nio.ByteBuffer>() {
+            @Override
+            public void onSubscribe(final Flow.Subscription subscription) {
+                subscription.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(final java.nio.ByteBuffer item) {
+                // a normal write
+            }
+
+            @Override
+            public void onError(final Throwable throwable) {
+                throw new IllegalStateException(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+                throw new IllegalStateException("the stream bails out on completion");
+            }
+        };
+
+        bus.subscribe(failing);
+        // the completion failure is swallowed, the bus still closes
+        assertDoesNotThrow(bus::cancel);
         assertTrue(bus.isClosed());
     }
 }

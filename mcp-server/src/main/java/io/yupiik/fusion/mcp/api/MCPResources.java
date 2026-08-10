@@ -17,8 +17,11 @@ package io.yupiik.fusion.mcp.api;
 
 import io.yupiik.fusion.mcp.model.ReadResourceResponse;
 import io.yupiik.fusion.mcp.model.Resource;
+import io.yupiik.fusion.mcp.model.ResourceContents;
 import io.yupiik.fusion.mcp.model.ResourceTemplate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -66,12 +69,47 @@ public interface MCPResources {
 
     /**
      * Reads a resource, it can be one of {@link #resources()} or one an entry of {@link #resourceTemplates()}
-     * expands to.
+     * expands to. The default implementation serves the {@link #staticContents()} map, so a provider of static text
+     * resources only has to declare {@link #staticContents()} - no {@code read} boilerplate.
      *
      * @param uri the resource to read.
      * @return the resource contents or {@link Optional#empty()} when this provider does not know {@code uri}.
      */
     default Optional<ReadResourceResponse> read(final String uri) {
-        return Optional.empty();
+        return Optional.ofNullable(staticContents().get(uri));
+    }
+
+    /**
+     * @return the static resources keyed by uri, served by the default {@link #read(String)}.
+     */
+    default Map<String, ReadResourceResponse> staticContents() {
+        return Map.of();
+    }
+
+    /**
+     * Builds a {@link ReadResourceResponse} for a static text resource, handy to declare it in
+     * {@link #staticContents()}.
+     *
+     * @param uri      the resource uri.
+     * @param mimeType the resource mime type.
+     * @param text     the text content.
+     * @return the matching response.
+     */
+    static ReadResourceResponse text(final String uri, final String mimeType, final String text) {
+        return ReadResourceResponse.of(ResourceContents.text(uri, mimeType, text));
+    }
+
+    /**
+     * Convenience building a {@link #staticContents() map} from simple text records.
+     *
+     * @param entries uri, mime type and text triples.
+     * @return the static contents map.
+     */
+    static Map<String, ReadResourceResponse> staticTextResources(final String... entries) {
+        final var map = new LinkedHashMap<String, ReadResourceResponse>();
+        for (int i = 0; i + 2 < entries.length; i += 3) {
+            map.put(entries[i], text(entries[i], entries[i + 1], entries[i + 2]));
+        }
+        return map;
     }
 }

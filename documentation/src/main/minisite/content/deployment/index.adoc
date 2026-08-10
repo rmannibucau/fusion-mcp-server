@@ -17,6 +17,7 @@ Everything about running a MCP server and letting a client reach it.
 | xref:configuration.adoc[Configuration] | every option, generated from the code, plus the inherited Fusion ones.
 | xref:transport.adoc[Transport] | the streamable HTTP protocol: routes, headers, sessions, SSE, negotiation.
 | xref:clients.adoc[Clients] | Claude, IDE agents, the MCP inspector, `curl`, and troubleshooting.
+| xref:conformance.adoc[Conformance] | validate against the official MCP conformance suite, for `2026-07-28` and `2025-11-25`.
 |===
 
 == The short version

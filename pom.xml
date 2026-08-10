@@ -64,6 +64,7 @@
   <modules>
     <module>mcp-server</module>
     <module>demo</module>
+    <module>conformance</module>
     <module>documentation</module>
   </modules>
 

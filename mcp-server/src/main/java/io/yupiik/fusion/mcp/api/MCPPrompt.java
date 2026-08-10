@@ -31,7 +31,7 @@ import java.lang.annotation.Target;
  *     @JsonRpc(value = "my/prompt", documentation = "Reviews a code snippet.")
  *     public PromptResponse review(@JsonRpcParam(required = true) final String code) {
  *         return new PromptResponse(null, "Code review", List.of(new PromptResponse.Message(
- *                 Role.user, Content.text("Review this code: " + code))));
+ *                 Role.user, Content.text("Review this code: " + code))), null);
  *     }
  * }
  * }</pre>

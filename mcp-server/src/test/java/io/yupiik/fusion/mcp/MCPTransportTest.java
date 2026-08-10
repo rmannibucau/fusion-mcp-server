@@ -481,10 +481,6 @@ class MCPTransportTest {
         }
     }
 
-    /**
-     * A stream which must not deliver anything either ended - the read fails - or stays silent - the read times out.
-     * Both are asserted with a bounded wait so a broken expectation can never hang the suite.
-     */
     private void assertNothingDelivered(final MCPClient client, final Iterator<String> stream) {
         assertThrows(
                 Exception.class,

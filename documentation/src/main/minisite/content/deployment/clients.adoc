@@ -1,8 +1,8 @@
 = Connecting a client
 :minisite-nav-prev-label: Transport
 :minisite-nav-prev-link: transport.html
-:minisite-nav-next-label: Internals
-:minisite-nav-next-link: ../internals/index.html
+:minisite-nav-next-label: Conformance
+:minisite-nav-next-link: conformance.html
 
 This page is about the *end user* side: making a running server usable from a real MCP client, and understanding what
 the user and the model actually see.

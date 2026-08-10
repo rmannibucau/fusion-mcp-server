@@ -3,8 +3,8 @@
 :minisite-index-title: Internals
 :minisite-index-description: Design, demo, testing, contributing.
 :minisite-index-icon: sitemap
-:minisite-nav-prev-label: Clients
-:minisite-nav-prev-link: ../deployment/clients.html
+:minisite-nav-prev-label: Conformance
+:minisite-nav-prev-link: ../deployment/conformance.html
 :minisite-nav-next-label: Design
 :minisite-nav-next-link: design.html
 

@@ -170,6 +170,8 @@ public class OpenRpcService {
                 return new OpenRpc.JsonSchema(
                         null,
                         null,
+                        null,
+                        null,
                         schema.type(),
                         schema.nullable(),
                         schema.description(),
@@ -184,6 +186,8 @@ public class OpenRpcService {
             final var newItems = resolveRefs(world, schema.items(), visitedRefs);
             if (newItems != null) {
                 return new OpenRpc.JsonSchema(
+                        null,
+                        null,
                         null,
                         null,
                         schema.type(),
@@ -206,6 +210,18 @@ public class OpenRpcService {
      */
     private OpenRpc.JsonSchema opaque(final OpenRpc.JsonSchema schema) {
         return new OpenRpc.JsonSchema(
-                null, null, "object", schema.nullable(), schema.description(), null, null, null, true, null, null);
+                null,
+                null,
+                null,
+                null,
+                "object",
+                schema.nullable(),
+                schema.description(),
+                null,
+                null,
+                null,
+                true,
+                null,
+                null);
     }
 }

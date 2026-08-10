@@ -36,6 +36,7 @@ import io.yupiik.fusion.mcp.model.ElicitResponse;
 import io.yupiik.fusion.mcp.model.JsonSchema;
 import io.yupiik.fusion.mcp.model.ListRootsResponse;
 import io.yupiik.fusion.mcp.model.LoggingLevel;
+import io.yupiik.fusion.mcp.model.MCPResult;
 import io.yupiik.fusion.mcp.model.MessageNotification;
 import io.yupiik.fusion.mcp.model.ProgressNotification;
 import io.yupiik.fusion.mcp.model.ResourceUpdatedNotification;
@@ -131,7 +132,7 @@ class MCPSessionTest {
 
     @Test
     void samplingNeedsTheClientCapability(@Fusion final JsonMapper jsons) {
-        final var session = initialized(jsons, new Capabilities(null, null, null, null));
+        final var session = initialized(jsons, new Capabilities(null, null, null, null, null));
 
         final var error = assertThrows(JsonRpcException.class, () -> session.createMessage(sampling()));
 
@@ -142,7 +143,7 @@ class MCPSessionTest {
 
     @Test
     void elicitationNeedsTheClientCapability(@Fusion final JsonMapper jsons) {
-        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null, null));
 
         final var error = assertThrows(
                 JsonRpcException.class,
@@ -154,7 +155,7 @@ class MCPSessionTest {
 
     @Test
     void rootsNeedsTheClientCapability(@Fusion final JsonMapper jsons) {
-        final var session = initialized(jsons, new Capabilities(null, Map.of(), Map.of(), null));
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), Map.of(), null, null));
 
         final var error = assertThrows(JsonRpcException.class, session::listRoots);
 
@@ -162,8 +163,27 @@ class MCPSessionTest {
     }
 
     @Test
+    void aMissingCapabilityIsA32021OnTheStatelessProtocol(@Fusion final JsonMapper jsons) {
+        final var stateless = new MCPSession("stateless", jsons, Duration.ofSeconds(5), true);
+        stateless.onInitialize("2026-07-28", new Capabilities(null, null, null, null, null), null);
+
+        final var error =
+                assertThrows(JsonRpcException.class, () -> stateless.requireClientCapability(null, "sampling"));
+
+        assertEquals(MCPProtocol.MISSING_CLIENT_CAPABILITY, error.code());
+        assertEquals(Map.of("requiredCapabilities", Map.of("sampling", Map.of())), error.data());
+    }
+
+    @Test
+    void aDeclaredCapabilityIsAcceptedOnTheStatelessProtocol(@Fusion final JsonMapper jsons) {
+        final var stateless = new MCPSession("stateless", jsons, Duration.ofSeconds(5), true);
+
+        stateless.requireClientCapability(Map.of(), "sampling");
+    }
+
+    @Test
     void samplingIsCorrelatedWithTheClientResponse(@Fusion final JsonMapper jsons) throws Exception {
-        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null, null));
 
         final var promise = session.createMessage(sampling()).toCompletableFuture();
 
@@ -189,7 +209,7 @@ class MCPSessionTest {
 
     @Test
     void clientErrorFailsTheRequest(@Fusion final JsonMapper jsons) {
-        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null, null));
         final var promise = session.createMessage(sampling()).toCompletableFuture();
 
         session.onClientResponse(1, null, Map.of("code", -1, "message", "user refused"));
@@ -210,7 +230,7 @@ class MCPSessionTest {
     @Test
     void requestsTimeOut(@Fusion final JsonMapper jsons) {
         final var session = new MCPSession("timeout", jsons, Duration.ofMillis(150));
-        session.onInitialize("2025-06-18", new Capabilities(null, Map.of(), null, null), null);
+        session.onInitialize("2025-06-18", new Capabilities(null, Map.of(), null, null, null), null);
 
         final var error = assertThrows(
                 CompletionException.class,
@@ -221,7 +241,7 @@ class MCPSessionTest {
 
     @Test
     void closeFailsThePendingRequests(@Fusion final JsonMapper jsons) {
-        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null, null));
         final var promise = session.createMessage(sampling()).toCompletableFuture();
         session.subscribe("app://x");
 
@@ -313,7 +333,7 @@ class MCPSessionTest {
 
     @Test
     void elicitationIsCorrelatedWithTheClientResponse(@Fusion final JsonMapper jsons) throws Exception {
-        final var session = initialized(jsons, new Capabilities(null, null, Map.of(), null));
+        final var session = initialized(jsons, new Capabilities(null, null, Map.of(), null, null));
 
         final var promise = session.elicit(elicitation()).toCompletableFuture();
 
@@ -327,7 +347,7 @@ class MCPSessionTest {
 
     @Test
     void rootsAreFetchedOnDemand(@Fusion final JsonMapper jsons) throws Exception {
-        final var session = initialized(jsons, new Capabilities(new Capabilities.Roots(true), null, null, null));
+        final var session = initialized(jsons, new Capabilities(new Capabilities.Roots(true), null, null, null, null));
 
         final var promise = session.listRoots().toCompletableFuture();
 
@@ -343,7 +363,7 @@ class MCPSessionTest {
 
     @Test
     void aResponseAlreadyOfTheExpectedTypeIsNotReserialized(@Fusion final JsonMapper jsons) throws Exception {
-        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null, null));
         final var promise = session.createMessage(sampling()).toCompletableFuture();
         final var answer = new CreateMessageResponse(null, Content.text("hi"), "a-model", Role.assistant, null);
 
@@ -354,7 +374,7 @@ class MCPSessionTest {
 
     @Test
     void anEmptyClientResponseIsNull(@Fusion final JsonMapper jsons) throws Exception {
-        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null, null));
         final var promise = session.createMessage(sampling()).toCompletableFuture();
 
         // a client answering {"id": 1, "result": null}
@@ -365,7 +385,7 @@ class MCPSessionTest {
 
     @Test
     void aMalformedClientErrorFallsBackOnDefaults(@Fusion final JsonMapper jsons) {
-        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null, null));
         final var promise = session.createMessage(sampling()).toCompletableFuture();
 
         // neither a numeric code nor a message, which the specification requires but a client may still send
@@ -387,13 +407,67 @@ class MCPSessionTest {
 
     @Test
     void aRequestWhichCannotBeSerializedIsNotLeftPending(@Fusion final JsonMapper jsons) {
-        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null));
+        final var session = initialized(jsons, new Capabilities(null, Map.of(), null, null, null));
 
         // an unserializable payload: the request must not stay in the pending map, else close() would report it
         assertThrows(RuntimeException.class, () -> session.request("custom/thing", new Unserializable(), Map.class));
 
         session.close();
         assertTrue(session.sse().isClosed());
+    }
+
+    @Test
+    void applyRequestMetaKeepsTheGivenValues(@Fusion final JsonMapper jsons) {
+        final var session = session(jsons);
+        final var capabilities = new Capabilities(null, Map.of(), Map.of(), null, null);
+
+        session.applyRequestMeta(
+                capabilities, new ClientInfo("a", "b", "1"), LoggingLevel.debug, "tok", Map.of("k", "v"), "state");
+
+        assertSame(capabilities, session.capabilities());
+        assertEquals("a", session.clientInfo().name());
+        assertEquals(LoggingLevel.debug, session.loggingLevel());
+        assertEquals("tok", session.progressToken());
+        assertEquals(Map.of("k", "v"), session.inputResponses());
+        assertEquals("state", session.requestState());
+
+        // a null envelope leaves everything as it is
+        session.applyRequestMeta(null, null, null, null, null, null);
+        assertEquals("tok", session.progressToken());
+    }
+
+    @Test
+    void notifyWithASubscriptionIdTagsTheParams(@Fusion final JsonMapper jsons) {
+        final var session = session(jsons);
+
+        session.notify("notifications/custom", Map.of("a", "b"), 7);
+        assertTrue(session.sse().queued().get(0).contains("\"io.modelcontextprotocol/subscriptionId\":7"));
+
+        // no params, still tagged
+        session.notify("notifications/custom", null, "sid");
+        assertTrue(session.sse().queued().get(1).contains("\"io.modelcontextprotocol/subscriptionId\":\"sid\""));
+
+        // an existing _meta is merged, not replaced
+        session.notify("notifications/custom", Map.of("_meta", Map.of("custom", "v"), "a", "b"), "sid2");
+        final var merged = session.sse().queued().get(2);
+        assertTrue(merged.contains("\"custom\":\"v\""), merged);
+        assertTrue(merged.contains("\"io.modelcontextprotocol/subscriptionId\":\"sid2\""), merged);
+    }
+
+    @Test
+    void respondPublishesAResultOnTheStream(@Fusion final JsonMapper jsons) {
+        final var session = session(jsons);
+
+        session.respond(7, MCPResult.ack());
+        session.end(8, MCPResult.ack());
+
+        assertTrue(
+                session.sse().queued().get(0).contains("\"id\":7"),
+                session.sse().queued().get(0));
+        assertTrue(
+                session.sse().queued().get(1).contains("\"id\":8"),
+                session.sse().queued().get(1));
+        assertTrue(session.sse().isClosed(), "end closes the stream");
     }
 
     /**

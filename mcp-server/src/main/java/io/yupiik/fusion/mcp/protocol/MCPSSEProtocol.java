@@ -24,6 +24,7 @@ import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 import io.yupiik.fusion.framework.build.api.http.HttpMatcher;
 import io.yupiik.fusion.http.server.api.Request;
 import io.yupiik.fusion.http.server.api.Response;
+import io.yupiik.fusion.mcp.configuration.MCPConfiguration;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.concurrent.CompletionStage;
 import java.util.logging.Logger;
@@ -43,17 +44,26 @@ public class MCPSSEProtocol {
     private final Logger logger = Logger.getLogger(MCPSSEProtocol.class.getName());
 
     private final MCPSessions sessions;
+    private final boolean rejectNonLocalHosts;
 
     protected MCPSSEProtocol() {
-        this(null);
+        this(null, null);
     }
 
     public MCPSSEProtocol(final MCPSessions sessions) {
+        this(sessions, null);
+    }
+
+    public MCPSSEProtocol(final MCPSessions sessions, final MCPConfiguration configuration) {
         this.sessions = sessions;
+        this.rejectNonLocalHosts = configuration == null || configuration.rejectNonLocalHosts();
     }
 
     @HttpMatcher(methods = "GET", path = "/mcp")
     public CompletionStage<Response> sse(final Request request) {
+        if (rejectNonLocalHosts && !HostGuard.isAllowed(request)) {
+            return completedFuture(HostGuard.forbidden());
+        }
         final var id = request.header(SESSION_HEADER);
         if (id != null && sessions.find(id).isEmpty()) {
             return completedFuture(Response.of()
@@ -93,6 +103,9 @@ public class MCPSSEProtocol {
 
     @HttpMatcher(methods = "DELETE", path = "/mcp")
     public CompletionStage<Response> delete(final Request request) {
+        if (rejectNonLocalHosts && !HostGuard.isAllowed(request)) {
+            return completedFuture(HostGuard.forbidden());
+        }
         final var id = request.header(SESSION_HEADER);
         if (id == null) {
             return completedFuture(Response.of()

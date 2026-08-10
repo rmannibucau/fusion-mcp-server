@@ -18,10 +18,12 @@ package io.yupiik.fusion.mcp.demo;
 import static io.yupiik.fusion.testing.assertion.JsonAsserts.assertJsonEquals;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.mcp.client.MCPClient;
+import io.yupiik.fusion.mcp.protocol.MCPProtocol;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
 import java.net.URI;
@@ -47,14 +49,14 @@ class DemoTest {
                               "id": 1,
                               "result": {
                                 "capabilities": {
-                                  "completions": {},
+                                  "completions": {"completions": {}},
                                   "logging": {},
                                   "prompts": {"listChanged": false},
                                   "resources": {"listChanged": true, "subscribe": true},
                                   "tools": {"listChanged": false}
                                 },
                                 "instructions": "Use the exposed tools to answer the user.",
-                                "protocolVersion": "2025-06-18",
+                                "protocolVersion": "2025-11-25",
                                 "serverInfo": {
                                   "name": "fusion-mcp-server",
                                   "title": "Fusion MCP Server",
@@ -62,6 +64,30 @@ class DemoTest {
                                 }
                               }
                             }""", res.body());
+        }
+    }
+
+    @Test
+    void statelessDiscoverServesThe2026Protocol(
+            @Fusion final URI mcpEndpoint,
+            @Fusion final HttpClient http,
+            @Fusion final io.yupiik.fusion.json.JsonMapper jsons) {
+        try (final var client = new MCPClient(mcpEndpoint, http, jsons)) {
+            final var discovery = client.discover().toCompletableFuture().join();
+
+            // the demo serves the modern stateless 2026-07-28 protocol in addition to the legacy one
+            assertTrue(client.isStateless());
+            assertEquals(MCPProtocol.STATELESS_VERSIONS, discovery.supportedVersions());
+            assertNotNull(discovery.capabilities().tools());
+            assertTrue(discovery.capabilities().tools().listChanged());
+
+            // and the stateless client can call a tool with the per-request _meta envelope
+            assertEquals(
+                    200,
+                    client.call(2, "tools/list", "{}")
+                            .toCompletableFuture()
+                            .join()
+                            .statusCode());
         }
     }
 
@@ -95,11 +121,14 @@ class DemoTest {
                     client.call(2, "tools/list", "{}").toCompletableFuture().join();
 
             // the description, the parameter documentation and both schemas come from the OpenRPC document Fusion
-            // generates out of the method signature
+            // generates out of the method signature; the negotiated 2025-11-25 protocol makes the 2020-12 conversion
+            // implicit
             assertJsonEquals("""
                             {
                               "description": "Greets someone by name.",
                               "inputSchema": {
+                                "additionalProperties": false,
+                                "$defs": {},
                                 "description": "Input request for demo/greet",
                                 "properties": {
                                   "name": {"description": "Who to greet.", "type": "string"},
@@ -110,6 +139,7 @@ class DemoTest {
                                   }
                                 },
                                 "required": ["name"],
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
                                 "type": "object"
                               },
                               "name": "demo/greet",
@@ -123,7 +153,8 @@ class DemoTest {
                                 "required": [],
                                 "type": "object"
                               },
-                              "title": "demo/greet"
+                              "title": "demo/greet",
+                              "icons": [{"src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4=", "sizes": ["any"], "theme": "light"}]
                             }""", tool(jsons, res.body(), "demo/greet"));
         }
     }
@@ -135,14 +166,14 @@ class DemoTest {
             final var res =
                     client.call(2, "tools/list", "{}").toCompletableFuture().join();
 
-            // a nested model is inlined - no $ref a client could not resolve - a collection becomes items, a map
-            // becomes additionalProperties, an enum becomes enum and a primitive is required
+            // a nested model becomes a $defs reference - no dangling $ref a client could not resolve - a collection
+            // becomes items, a map becomes additionalProperties, an enum becomes enum and a primitive is required
             assertJsonEquals("""
                             {
                               "description": "Searches the demo catalog.",
                               "inputSchema": {
-                                "description": "Input request for demo/search",
-                                "properties": {
+                                "additionalProperties": false,
+                                "$defs": {
                                   "query": {
                                     "description": "The query.",
                                     "properties": {
@@ -158,16 +189,21 @@ class DemoTest {
                                     "required": ["fuzzy"],
                                     "type": "object"
                                   },
+                                  "options": {
+                                    "additionalProperties": {"type": "string"},
+                                    "description": "Extra options.",
+                                    "type": "object"
+                                  }
+                                },
+                                "description": "Input request for demo/search",
+                                "properties": {
+                                  "query": {"$ref": "#/$defs/query", "type": "object"},
                                   "tags": {
                                     "description": "Tags to filter on.",
                                     "items": {"type": "string"},
                                     "type": "array"
                                   },
-                                  "options": {
-                                    "additionalProperties": {"type": "string"},
-                                    "description": "Extra options.",
-                                    "type": "object"
-                                  },
+                                  "options": {"$ref": "#/$defs/options", "type": "object"},
                                   "limit": {
                                     "description": "How many results at most.",
                                     "format": "int32",
@@ -180,6 +216,7 @@ class DemoTest {
                                   }
                                 },
                                 "required": ["limit", "query"],
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
                                 "type": "object"
                               },
                               "name": "demo/search",

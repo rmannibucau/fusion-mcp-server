@@ -20,6 +20,7 @@ import static java.util.logging.Level.FINE;
 import static java.util.logging.Level.FINEST;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -60,11 +61,13 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
     private final AtomicLong lastEventId = new AtomicLong();
     private final AtomicLong replayFrom = new AtomicLong(NO_REPLAY);
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean closeNotified = new AtomicBoolean();
     // serializes the emission, the HTTP layer calls request(1) from within onNext so drain() is re-entrant
     private final AtomicInteger wip = new AtomicInteger();
     private final Deque<Frame> frames = new ConcurrentLinkedDeque<>();
     private final Deque<Frame> sent = new ConcurrentLinkedDeque<>();
     private volatile Flow.Subscriber<? super ByteBuffer> subscriber;
+    private volatile Runnable onClose;
 
     /**
      * Queues a JSON-RPC message for the client.
@@ -85,6 +88,25 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
     public void keepAlive() {
         frames.add(Frame.KEEP_ALIVE_FRAME);
         drain();
+    }
+
+    /**
+     * Queues a last message then closes the stream, what a graceful termination - e.g. {@code subscriptions/cancel} -
+     * delivers: the subscriber still reads the closing result before the {@code onComplete}.
+     *
+     * @param json the already serialized JSON-RPC message to deliver.
+     */
+    public void end(final String json) {
+        publish(json);
+        cancel();
+    }
+
+    /**
+     * @param onClose the hook invoked once when the stream is closed with {@link #cancel()}, it lets the owner
+     *                release what the stream was holding - e.g. a modern subscription.
+     */
+    public void onClose(final Runnable onClose) {
+        this.onClose = onClose;
     }
 
     /**
@@ -114,6 +136,7 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
             return;
         }
         complete(subscriber);
+        notifyClosed();
     }
 
     /**
@@ -121,6 +144,17 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
      */
     public boolean isClosed() {
         return closed.get();
+    }
+
+    private void notifyClosed() {
+        final var current = onClose;
+        if (current != null && closeNotified.compareAndSet(false, true)) {
+            try {
+                current.run();
+            } catch (final RuntimeException re) {
+                logger.log(FINEST, re, re::getMessage);
+            }
+        }
     }
 
     @Override
@@ -244,6 +278,29 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
             if (subscriber == current) {
                 subscriber = null;
             }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Drains the buffered JSON frames - the notifications a request published while running - so the transport can
+     * stream them before the final result. The keep-alive comments are dropped, they only make sense on a live stream.
+     *
+     * @return the queued JSON-RPC messages, in emission order.
+     */
+    public List<String> drainQueuedJson() {
+        lock.lock();
+        try {
+            final var json = new ArrayList<String>(frames.size());
+            for (final var iterator = frames.iterator(); iterator.hasNext(); ) {
+                final var frame = iterator.next();
+                if (frame.json() != null) {
+                    json.add(frame.json());
+                }
+            }
+            frames.removeIf(Frame::isReplayable);
+            return json;
         } finally {
             lock.unlock();
         }

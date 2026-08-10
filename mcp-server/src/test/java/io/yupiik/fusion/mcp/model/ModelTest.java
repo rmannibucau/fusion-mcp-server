@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.yupiik.fusion.json.JsonMapper;
+import io.yupiik.fusion.mcp.protocol.MCPProtocol;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
 import java.util.List;
@@ -70,6 +71,17 @@ class ModelTest {
     }
 
     @Test
+    void toolUseAndToolResultContent(@Fusion final JsonMapper jsons) {
+        final var use = Content.toolUse("call_1", "get_weather", Map.of("city", "Paris"));
+        assertJsonEquals("""
+                        {"type": "tool_use", "name": "get_weather", "id": "call_1", "input": {"city": "Paris"}}""", jsons.toString(use));
+
+        final var result = Content.toolResult("call_1", List.of(Content.text("18°C, sunny")));
+        assertJsonEquals("""
+                        {"type": "tool_result", "toolUseId": "call_1", "isError": false, "content": [{"type": "text", "text": "18°C, sunny"}]}""", jsons.toString(result));
+    }
+
+    @Test
     void resourceContents(@Fusion final JsonMapper jsons) {
         assertJsonEquals(
                 """
@@ -80,7 +92,10 @@ class ModelTest {
     void metaIsSerializedAsUnderscoreMeta(@Fusion final JsonMapper jsons) {
         final var response = new ReadResourceResponse(
                 new Metadata("name", "title", Map.of("custom", "value")),
-                List.of(ResourceContents.text("app://x", "text/plain", "x")));
+                List.of(ResourceContents.text("app://x", "text/plain", "x")),
+                null,
+                null,
+                null);
 
         final var json = jsons.toString(response);
 
@@ -102,7 +117,7 @@ class ModelTest {
                           "structuredContent": {"uri": "app://x"}
                         }""",
                 jsons.toString(ToolResponse.structure(
-                        jsons, new Resource(null, null, null, null, null, null, "app://x", null))));
+                        jsons, new Resource(null, null, null, null, null, null, "app://x", null, null))));
     }
 
     @Test
@@ -125,7 +140,86 @@ class ModelTest {
                 jsons.toString(new PromptResponse(
                         null,
                         "Code review",
-                        List.of(new PromptResponse.Message(Role.user, Content.text("review this"))))));
+                        List.of(new PromptResponse.Message(Role.user, Content.text("review this"))),
+                        null)));
+    }
+
+    @Test
+    void aPromptMessageMayCarryAnArrayOfContentBlocks(@Fusion final JsonMapper jsons) {
+        // a message content can be a single block or an array of blocks
+        assertJsonEquals(
+                """
+                {"role": "user", "content": [{"type": "text", "text": "a"}, {"type": "tool_use", "name": "get_weather", "id": "call_1", "input": {}}]}""",
+                jsons.toString(PromptResponse.Message.of(
+                        Role.user, List.of(Content.text("a"), Content.toolUse("call_1", "get_weather", Map.of())))));
+    }
+
+    @Test
+    void aPromptMessageMayCarryASingleContentBlock(@Fusion final JsonMapper jsons) {
+        assertJsonEquals("""
+                {"role": "user", "content": {"type": "text", "text": "a"}}""", jsons.toString(PromptResponse.Message.of(Role.user, Content.text("a"))));
+    }
+
+    @Test
+    void aSchemaMayCarryAHeaderHint(@Fusion final JsonMapper jsons) {
+        // the transport hint is only a property of the schema, it must not leak into the JSON-Schema keywords
+        assertJsonEquals("""
+                {"type": "string", "description": "a name", "x-mcp-header": "query"}""", jsons.toString(JsonSchema.string("a name").withHeader("query")));
+    }
+
+    @Test
+    void jsonSchema202012Keywords(@Fusion final JsonMapper jsons) {
+        // the SEP-2106 vocabulary: composition, conditional and reference keywords must survive serialization
+        final var schema = JsonSchema.object(
+                        "a contact form",
+                        Map.of(
+                                "name", JsonSchema.string("a name"),
+                                "contactMethod", JsonSchema.enumeration("how", List.of("phone", "email"))),
+                        false,
+                        null)
+                .withDialect("https://json-schema.org/draft/2020-12/schema")
+                .withDefs(Map.of(
+                        "address",
+                        JsonSchema.object("an address", Map.of("street", JsonSchema.string(null)), null, null)
+                                .withAnchor("addressDef")))
+                .withAllOf(List.of(JsonSchema.of("object", null)
+                        .withAnyOf(List.of(
+                                JsonSchema.object(null, Map.of(), List.of("phone")),
+                                JsonSchema.object(null, Map.of(), List.of("email"))))))
+                .withConditional(
+                        JsonSchema.object(
+                                null,
+                                Map.of("contactMethod", JsonSchema.string(null).withConst("phone")),
+                                List.of("contactMethod")),
+                        JsonSchema.object(null, Map.of(), List.of("phone")),
+                        JsonSchema.object(null, Map.of(), List.of("email")));
+
+        assertJsonEquals("""
+                        {
+                          "$schema": "https://json-schema.org/draft/2020-12/schema",
+                          "type": "object",
+                          "description": "a contact form",
+                          "properties": {
+                            "name": {"type": "string", "description": "a name"},
+                            "contactMethod": {"type": "string", "description": "how", "enum": ["phone", "email"]}
+                          },
+                          "additionalProperties": false,
+                          "allOf": [
+                            {
+                              "type": "object",
+                              "anyOf": [
+                                {"type": "object", "properties": {}, "required": ["phone"]},
+                                {"type": "object", "properties": {}, "required": ["email"]}
+                              ]
+                            }
+                          ],
+                          "if": {"type": "object", "properties": {"contactMethod": {"type": "string", "const": "phone"}}, "required": ["contactMethod"]},
+                          "then": {"type": "object", "properties": {}, "required": ["phone"]},
+                          "else": {"type": "object", "properties": {}, "required": ["email"]},
+                          "$defs": {
+                            "address": {"type": "object", "description": "an address", "properties": {"street": {"type": "string"}}, "$anchor": "addressDef"}
+                          }
+                        }""", jsons.toString(schema));
     }
 
     @Test
@@ -145,7 +239,12 @@ class ModelTest {
                           ]
                         }""",
                 jsons.toString(new ListResourceTemplatesResponse(
-                        List.of(ResourceTemplate.of("demo://echo/{message}", "echo", "text/plain", "Echoes.")), null)));
+                        List.of(ResourceTemplate.of("demo://echo/{message}", "echo", "text/plain", "Echoes.")),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null)));
     }
 
     @Test
@@ -188,6 +287,25 @@ class ModelTest {
                         JsonSchema.object("options", Map.of("known", JsonSchema.string(null)), true, List.of())));
         assertJsonEquals("""
                 {"type": "null", "description": "nothing"}""", jsons.toString(JsonSchema.of("null", "nothing")));
+    }
+
+    @Test
+    void jsonSchemaFluentKeywords(@Fusion final JsonMapper jsons) {
+        assertJsonEquals("""
+                        {"type": "string", "title": "a name", "description": "desc"}""", jsons.toString(JsonSchema.string("desc").withTitle("a name")));
+        assertJsonEquals(
+                """
+                        {"type": "string", "enum": ["a", "b"], "enumNames": ["A", "B"]}""",
+                jsons.toString(JsonSchema.enumeration(null, List.of("a", "b")).withEnumNames(List.of("A", "B"))));
+        assertJsonEquals("""
+                        {"type": "string", "default": "pending"}""", jsons.toString(JsonSchema.string(null).withDefault("pending")));
+        assertJsonEquals(
+                """
+                        {"type": "string", "oneOf": [{"type": "string", "const": "x"}, {"type": "string", "const": "y"}]}""",
+                jsons.toString(JsonSchema.string(null)
+                        .withOneOf(List.of(
+                                JsonSchema.of("string", null).withConst("x"),
+                                JsonSchema.of("string", null).withConst("y")))));
     }
 
     @Test
@@ -291,5 +409,123 @@ class ModelTest {
 
         assertTrue(json.contains("\"audience\":[\"user\"]"), json);
         assertTrue(json.contains("\"priority\":1"), json);
+    }
+
+    @Test
+    void implementationWireFormat(@Fusion final JsonMapper jsons) {
+        assertJsonEquals(
+                """
+                        {"name": "fusion-mcp-server", "version": "1.0.0", "description": "An MCP server", "websiteUrl": "https://yupiik.com"}""",
+                jsons.toString(
+                        new Implementation("fusion-mcp-server", "1.0.0", "An MCP server", "https://yupiik.com")));
+
+        // the legacy initialize identity stays a ServerInfo
+        assertJsonEquals(
+                """
+                        {"name": "fusion-mcp-server", "title": "Fusion MCP Server", "version": "1.0.0"}""",
+                jsons.toString(new InitializeResponse.ServerInfo("fusion-mcp-server", "Fusion MCP Server", "1.0.0")));
+    }
+
+    @Test
+    void subscriptionFilterWireFormat(@Fusion final JsonMapper jsons) {
+        assertJsonEquals("""
+                        {"toolsListChanged": true, "resourcesListChanged": true, "resourceSubscriptions": ["app://x"]}""", jsons.toString(new SubscriptionFilter(true, null, true, List.of("app://x"))));
+
+        assertTrue(SubscriptionFilter.optedIn(Boolean.TRUE));
+        assertFalse(SubscriptionFilter.optedIn(Boolean.FALSE));
+        assertFalse(SubscriptionFilter.optedIn(null));
+    }
+
+    @Test
+    void serverDiscoverResponseWireFormat(@Fusion final JsonMapper jsons) {
+        assertJsonEquals(
+                """
+                        {
+                          "supportedVersions": ["2026-07-28"],
+                          "capabilities": {"logging": {}, "tools": {"listChanged": true}},
+                          "serverInfo": {"name": "fusion-mcp-server", "title": "Fusion MCP Server", "version": "1.0.0"},
+                          "instructions": "Be nice.",
+                          "resultType": "complete",
+                          "ttlMs": 30000,
+                          "cacheScope": "private",
+                          "_meta": {"io.modelcontextprotocol/serverInfo": {"name": "fusion-mcp-server", "title": "Fusion MCP Server", "version": "1.0.0"}}
+                        }""",
+                jsons.toString(new ServerDiscoverResponse(
+                        List.of("2026-07-28"),
+                        new ServerCapabilities(
+                                null, Map.of(), null, null, null, new ServerCapabilities.Tools(true), null),
+                        new InitializeResponse.ServerInfo("fusion-mcp-server", "Fusion MCP Server", "1.0.0"),
+                        "Be nice.",
+                        ResultType.complete,
+                        30000L,
+                        "private",
+                        new Metadata(
+                                null,
+                                null,
+                                Map.of(
+                                        MCPProtocol.SERVER_INFO_META,
+                                        new InitializeResponse.ServerInfo(
+                                                "fusion-mcp-server", "Fusion MCP Server", "1.0.0"))))));
+    }
+
+    @Test
+    void resultTypeIsAWireValue(@Fusion final JsonMapper jsons) {
+        assertEquals("\"complete\"", jsons.toString(ResultType.complete));
+        assertEquals("\"error\"", jsons.toString(ResultType.error));
+        assertEquals(ResultType.complete, jsons.fromString(ResultType.class, "\"complete\""));
+        assertEquals(ResultType.error, jsons.fromString(ResultType.class, "\"error\""));
+    }
+
+    @Test
+    void inputRequiredWireValue(@Fusion final JsonMapper jsons) {
+        assertEquals("\"input_required\"", jsons.toString(ResultType.input_required));
+        assertJsonEquals(
+                """
+                {"method": "elicitation/create", "params": {"prompt": "What is your name?"}}""", jsons.toString(new InputRequest("elicitation/create", Map.of("prompt", "What is your name?"))));
+    }
+
+    @Test
+    void mcpResultUnions(@Fusion final JsonMapper jsons) {
+        // a tool result
+        assertJsonEquals(
+                """
+                        {"resultType":"complete","isError":false,"content":[{"type":"text","text":"a"}],"structuredContent":{"ok":true}}""",
+                jsons.toString(MCPResult.complete(new ToolResponse(
+                        null, false, List.of(Content.text("a")), Map.of("ok", true), ResultType.complete))));
+        // a prompt result
+        assertJsonEquals(
+                """
+                        {"description":"A description","messages":[{"role":"user","content":{"type":"text","text":"hello"}}]}""",
+                jsons.toString(MCPResult.complete(new PromptResponse(
+                        null,
+                        "A description",
+                        List.of(new PromptResponse.Message(Role.user, Content.text("hello"))),
+                        null))));
+        // a resource result
+        assertJsonEquals(
+                """
+                        {"resultType":"complete","contents":[{"uri":"app://x","mimeType":"text/plain","text":"x"}],"ttlMs":30000,"cacheScope":"private"}""",
+                jsons.toString(MCPResult.complete(new ReadResourceResponse(
+                        null,
+                        List.of(ResourceContents.text("app://x", "text/plain", "x")),
+                        ResultType.complete,
+                        30000L,
+                        "private"))));
+        // a failure
+        assertJsonEquals(
+                """
+                        {"resultType":"error","isError":true,"content":[{"type":"text","text":"oops"}],"structuredContent":{"code":-1,"message":"oops"}}""",
+                jsons.toString(MCPResult.error(
+                        true, List.of(Content.text("oops")), Map.of("code", -1, "message", "oops"), ResultType.error)));
+        // a multi round-trip request
+        assertJsonEquals(
+                """
+                        {"resultType":"input_required","inputRequests":{"elicitation/create":{"method":"elicitation/create","params":{"prompt":"What?"}}},"requestState":"token"}""",
+                jsons.toString(MCPResult.inputRequired(
+                        Map.of("elicitation/create", new InputRequest("elicitation/create", Map.of("prompt", "What?"))),
+                        "token")));
+        // the ack
+        assertJsonEquals("""
+                {"resultType":"complete"}""", jsons.toString(MCPResult.ack()));
     }
 }

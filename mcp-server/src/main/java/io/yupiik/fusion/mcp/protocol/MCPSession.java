@@ -29,11 +29,13 @@ import io.yupiik.fusion.mcp.model.ElicitResponse;
 import io.yupiik.fusion.mcp.model.JsonRpcMessage;
 import io.yupiik.fusion.mcp.model.ListRootsResponse;
 import io.yupiik.fusion.mcp.model.LoggingLevel;
+import io.yupiik.fusion.mcp.model.MCPResult;
 import io.yupiik.fusion.mcp.model.MessageNotification;
 import io.yupiik.fusion.mcp.model.MetadataParameters;
 import io.yupiik.fusion.mcp.model.ProgressNotification;
 import io.yupiik.fusion.mcp.model.ResourceUpdatedNotification;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -62,6 +64,7 @@ public class MCPSession {
     private final String id;
     private final JsonMapper jsons;
     private final Duration requestTimeout;
+    private final boolean stateless;
     private final AtomicLong requestIds = new AtomicLong();
     private final Map<Long, CompletableFuture<Object>> pendingRequests = new ConcurrentHashMap<>();
     private final Set<String> subscriptions = ConcurrentHashMap.newKeySet();
@@ -71,13 +74,29 @@ public class MCPSession {
     private volatile String protocolVersion;
     private volatile ClientInfo clientInfo;
     private volatile Capabilities capabilities;
+    private volatile Object progressToken;
+    private volatile Map<String, Object> inputResponses;
+    private volatile Object requestState;
     private volatile boolean initialized;
     private volatile long lastAccess = System.nanoTime();
 
     public MCPSession(final String id, final JsonMapper jsons, final Duration requestTimeout) {
+        this(id, jsons, requestTimeout, false);
+    }
+
+    /**
+     * @param id          the session identifier, {@code null} for an ephemeral session.
+     * @param jsons       the JSON mapper used to serialize the messages sent to the client.
+     * @param requestTimeout the maximum time awaited for a client response.
+     * @param stateless   {@code true} when the session was created for a stateless protocol request - it has no
+     *                    server to client channel beyond the current call and its responses carry the stateless
+     *                    result fields.
+     */
+    public MCPSession(final String id, final JsonMapper jsons, final Duration requestTimeout, final boolean stateless) {
         this.id = id;
         this.jsons = jsons;
         this.requestTimeout = requestTimeout;
+        this.stateless = stateless;
     }
 
     /**
@@ -116,6 +135,13 @@ public class MCPSession {
     }
 
     /**
+     * @return {@code true} when the session was created for a stateless protocol request.
+     */
+    public boolean isStateless() {
+        return stateless;
+    }
+
+    /**
      * @return the minimum level the client wants to receive log records at.
      */
     public LoggingLevel loggingLevel() {
@@ -124,6 +150,65 @@ public class MCPSession {
 
     public void setLoggingLevel(final LoggingLevel loggingLevel) {
         this.loggingLevel = loggingLevel == null ? DEFAULT_LOGGING_LEVEL : loggingLevel;
+    }
+
+    /**
+     * Applies the {@code _meta} envelope of a modern request: what the client can do, who it is, the log level it
+     * wants, the progress token of the call and the state of its multi round-trip interaction.
+     *
+     * @param clientCapabilities what the modern client declared it can do.
+     * @param clientInfo         which modern client is connecting.
+     * @param progressToken      the token of the current request, sent back in {@code notifications/progress}.
+     * @param inputResponses     the answers to the {@code inputRequests} of a previous {@code input_required} result.
+     * @param requestState       the state decoded from the {@code requestState} token the client echoed.
+     */
+    public void applyRequestMeta(
+            final Capabilities clientCapabilities,
+            final ClientInfo clientInfo,
+            final LoggingLevel logLevel,
+            final Object progressToken,
+            final Map<String, Object> inputResponses,
+            final Object requestState) {
+        if (clientCapabilities != null) {
+            this.capabilities = clientCapabilities;
+        }
+        if (clientInfo != null) {
+            this.clientInfo = clientInfo;
+        }
+        if (logLevel != null) {
+            this.loggingLevel = logLevel;
+        }
+        if (progressToken != null) {
+            this.progressToken = progressToken;
+        }
+        if (inputResponses != null) {
+            this.inputResponses = inputResponses;
+        }
+        if (requestState != null) {
+            this.requestState = requestState;
+        }
+    }
+
+    /**
+     * @return the progress token of the current request, it is what {@code notifications/progress} must echo.
+     */
+    public Object progressToken() {
+        return progressToken;
+    }
+
+    /**
+     * @return the answers to the {@code inputRequests} of a previous {@code input_required} result, keyed by the
+     * request method, {@code null} when there was none.
+     */
+    public Map<String, Object> inputResponses() {
+        return inputResponses;
+    }
+
+    /**
+     * @return the state decoded from the {@code requestState} the client echoed, {@code null} when there was none.
+     */
+    public Object requestState() {
+        return requestState;
     }
 
     /**
@@ -216,6 +301,60 @@ public class MCPSession {
      */
     public void notify(final String method, final Object params) {
         sse.publish(jsons.toString(JsonRpcMessage.notification(method, params)));
+    }
+
+    /**
+     * Sends a notification to a modern subscription, tagged with the subscription so the client routes it to the right
+     * stream.
+     *
+     * @param method         the notification name.
+     * @param params         its parameters, any {@code @JsonModel} instance, map or list.
+     * @param subscriptionId the {@code subscriptionId} the client correlates the notification with.
+     */
+    public void notify(final String method, final Object params, final Object subscriptionId) {
+        sse.publish(jsons.toString(JsonRpcMessage.notification(method, withSubscriptionMeta(params, subscriptionId))));
+    }
+
+    /**
+     * Answers the {@code subscriptions/listen} request on its own stream - what tells the client the stream is
+     * committed and live.
+     *
+     * @param id     the identifier of the {@code subscriptions/listen} request.
+     * @param result the result to deliver, typically a complete {@link MCPResult}.
+     */
+    public void respond(final Object id, final MCPResult result) {
+        sse.publish(jsons.toString(Map.of("jsonrpc", "2.0", "id", id, "result", result)));
+    }
+
+    /**
+     * Gracefully closes the stream with a last result, what {@code subscriptions/cancel} delivers when the client asks
+     * to end the subscription.
+     *
+     * @param id     the identifier of the {@code subscriptions/listen} request.
+     * @param result the final result to deliver before the stream completes.
+     */
+    public void end(final Object id, final MCPResult result) {
+        final var json = jsons.toString(Map.of("jsonrpc", "2.0", "id", id, "result", result));
+        sse.end(json);
+    }
+
+    private Object withSubscriptionMeta(final Object params, final Object subscriptionId) {
+        @SuppressWarnings("unchecked")
+        final var copied = params == null
+                ? new LinkedHashMap<String, Object>()
+                : new LinkedHashMap<>((Map<String, Object>) jsons.fromString(Map.class, jsons.toString(params)));
+        final var meta = new LinkedHashMap<String, Object>();
+        if (copied.get("_meta") instanceof Map<?, ?> existing) {
+            meta.putAll(cast(existing));
+        }
+        meta.put(MCPProtocol.SUBSCRIPTION_ID_META, subscriptionId);
+        copied.put("_meta", meta);
+        return copied;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> cast(final Map<?, ?> value) {
+        return (Map<String, Object>) value;
     }
 
     /**
@@ -330,17 +469,37 @@ public class MCPSession {
         return jsons.fromString(resultType, jsons.toString(result));
     }
 
-    private void requireClientCapability(final Object capability, final String name) {
-        if (capability == null) {
+    /**
+     * Rejects the call when the client did not declare the capability - a {@code -32021}
+     * {@code MissingRequiredClientCapabilityError} on the stateless protocol, a {@code -32601} on the legacy one.
+     * <p>
+     * It is what {@link #createMessage}, {@link #elicit} and {@link #listRoots} use to protect the server to client
+     * requests; a tool requiring a capability can call it directly - as {@code test_missing_capability} does.
+     *
+     * @param capability the declared capability, {@code null} when the client did not opt in.
+     * @param name       the capability name: {@code sampling}, {@code elicitation} or {@code roots}.
+     */
+    public void requireClientCapability(final Object capability, final String name) {
+        if (capability != null) {
+            return;
+        }
+        if (stateless) {
+            // the modern spec wants the missing capabilities as a ClientCapabilities object keyed by name, not an
+            // array of names - { "sampling": {} } for example
             throw new JsonRpcException(
-                    -32601,
-                    "Client does not support '" + name + "'",
-                    Map.of(
-                            "capability",
-                            name,
-                            "client",
-                            ofNullable(clientInfo).map(ClientInfo::name).orElse("?")),
+                    MCPProtocol.MISSING_CLIENT_CAPABILITY,
+                    "Missing required client capability '" + name + "'",
+                    Map.of("requiredCapabilities", Map.of(name, Map.of())),
                     null);
         }
+        throw new JsonRpcException(
+                -32601,
+                "Client does not support '" + name + "'",
+                Map.of(
+                        "capability",
+                        name,
+                        "client",
+                        ofNullable(clientInfo).map(ClientInfo::name).orElse("?")),
+                null);
     }
 }

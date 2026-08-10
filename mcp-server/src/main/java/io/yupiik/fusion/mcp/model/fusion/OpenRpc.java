@@ -48,6 +48,8 @@ public record OpenRpc(Map<String, JsonSchema> schemas, Map<String, JsonRpcMethod
     public record JsonSchema(
             @JsonProperty("$ref") String ref,
             @JsonProperty("$id") String id,
+            @JsonProperty("$schema") String schema,
+            @JsonProperty("$defs") Map<String, JsonSchema> defs,
             String type,
             Boolean nullable,
             String description,

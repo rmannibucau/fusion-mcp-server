@@ -18,13 +18,21 @@ package io.yupiik.fusion.mcp.service;
 import static io.yupiik.fusion.mcp.service.DescriptorService.TOOL;
 import static io.yupiik.fusion.mcp.test.StubJsonRpcMethod.prompt;
 import static io.yupiik.fusion.mcp.test.StubJsonRpcMethod.tool;
+import static java.util.concurrent.CompletableFuture.completedFuture;
+import static java.util.concurrent.CompletableFuture.failedFuture;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.yupiik.fusion.json.JsonMapper;
+import io.yupiik.fusion.mcp.model.CompleteResult;
+import io.yupiik.fusion.mcp.model.CompletionArgument;
+import io.yupiik.fusion.mcp.model.CompletionContext;
+import io.yupiik.fusion.mcp.model.CompletionRef;
+import io.yupiik.fusion.mcp.model.JsonSchema;
 import io.yupiik.fusion.mcp.model.ListPromptsResponse;
 import io.yupiik.fusion.mcp.model.fusion.OpenRpc;
 import io.yupiik.fusion.mcp.test.StubJsonRpcMethod;
@@ -66,6 +74,133 @@ class DescriptorServiceTest {
         // there is no pagination, everything is computed at startup and sent at once
         assertNull(service.tools().nextCursor());
         assertNull(service.prompts().nextCursor());
+    }
+
+    @Test
+    void anIconMetadataBecomesTheToolIcon(@Fusion final JsonMapper jsons) {
+        final var service = descriptors(
+                jsons,
+                Map.of(),
+                List.of(method("a/tool")),
+                List.of(tool(
+                        "a/tool",
+                        Map.of(DescriptorService.ICON_METADATA, "https://example.com/weather.svg"),
+                        params -> {
+                            throw new java.util.concurrent.CompletionException(new AssertionError());
+                        })));
+
+        final var icons = service.tools().tools().get(0).icons();
+        assertEquals(1, icons.size());
+        assertEquals("https://example.com/weather.svg", icons.get(0).src());
+        // a tool without an icon carries none - the icons field is then omitted from the wire
+        assertNull(descriptors(jsons, Map.of(), List.of(method("b/tool")), List.of(tool("b/tool")))
+                .tools()
+                .tools()
+                .get(0)
+                .icons());
+
+        // a quoted source - how the build-time metadata of a String attribute arrives - is unquoted before the wire
+        final var quoted = descriptors(
+                        jsons,
+                        Map.of(),
+                        List.of(method("c/tool")),
+                        List.of(tool(
+                                "c/tool",
+                                Map.of(DescriptorService.ICON_METADATA, "\"https://example.com/logo.png\""),
+                                params -> {
+                                    throw new java.util.concurrent.CompletionException(new AssertionError());
+                                })))
+                .tools()
+                .tools()
+                .get(0)
+                .icons();
+        assertEquals(1, quoted.size());
+        assertEquals("https://example.com/logo.png", quoted.get(0).src());
+    }
+
+    @Test
+    void anMCPCompletionMethodIsExposedAsACompletion(@Fusion final JsonMapper jsons) {
+        final var service = descriptors(
+                jsons,
+                Map.of(),
+                List.of(method("complete/lang")),
+                List.of(StubJsonRpcMethod.tool(
+                        "complete/lang",
+                        Map.of(DescriptorService.TYPE_METADATA, DescriptorService.COMPLETION),
+                        params -> java.util.concurrent.CompletableFuture.completedFuture(
+                                new CompleteResult.Completion(false, 2, List.of("fr", "en"))))));
+
+        assertEquals(1, service.completionProviders().size());
+        // the ref is ignored, the provider completes whatever argument it gets
+        final var completion = service.completionProviders()
+                .get(0)
+                .complete(
+                        new CompletionRef("ref/prompt", "anything", null, null),
+                        new io.yupiik.fusion.mcp.model.CompletionArgument("lang", ""),
+                        new CompletionContext(Map.of()));
+        assertEquals(List.of("fr", "en"), completion.values());
+        // a method without the completion metadata is not picked up
+        assertEquals(
+                0,
+                descriptors(jsons, Map.of(), List.of(method("a/tool")), List.of(tool("a/tool")))
+                        .completionProviders()
+                        .size());
+
+        // a completion method returning a plain list is wrapped, one which fails yields no completion
+        final var listService = descriptors(
+                jsons,
+                Map.of(),
+                List.of(method("complete/plain")),
+                List.of(StubJsonRpcMethod.tool(
+                        "complete/plain",
+                        Map.of(DescriptorService.TYPE_METADATA, DescriptorService.COMPLETION),
+                        params -> completedFuture(List.of("x", "y")))));
+        final var listed = listService
+                .completionProviders()
+                .get(0)
+                .complete(
+                        new CompletionRef("ref/prompt", "anything", null, null),
+                        new CompletionArgument("a", ""),
+                        new CompletionContext(Map.of()));
+        assertEquals(List.of("x", "y"), listed.values());
+
+        final var failingService = descriptors(
+                jsons,
+                Map.of(),
+                List.of(method("complete/fail")),
+                List.of(StubJsonRpcMethod.tool(
+                        "complete/fail",
+                        Map.of(DescriptorService.TYPE_METADATA, DescriptorService.COMPLETION),
+                        params -> failedFuture(new IllegalStateException("boom")))));
+        assertNull(failingService
+                .completionProviders()
+                .get(0)
+                .complete(
+                        new CompletionRef("ref/prompt", "anything", null, null),
+                        new CompletionArgument("a", ""),
+                        new CompletionContext(Map.of())));
+
+        // null argument/context are tolerated (the provider just calls the method without them)
+        final var nullArgs =
+                service.completionProviders().get(0).complete(new CompletionRef("r", "p", null, null), null, null);
+        assertEquals(List.of("fr", "en"), nullArgs.values());
+
+        // a method whose result is neither a Completion nor a list yields no completion
+        final var stringService = descriptors(
+                jsons,
+                Map.of(),
+                List.of(method("complete/string")),
+                List.of(StubJsonRpcMethod.tool(
+                        "complete/string",
+                        Map.of(DescriptorService.TYPE_METADATA, DescriptorService.COMPLETION),
+                        params -> completedFuture("a single string"))));
+        assertNull(stringService
+                .completionProviders()
+                .get(0)
+                .complete(
+                        new CompletionRef("ref/prompt", "anything", null, null),
+                        new CompletionArgument("a", ""),
+                        new CompletionContext(Map.of())));
     }
 
     @Test
@@ -251,6 +386,224 @@ class DescriptorServiceTest {
     }
 
     @Test
+    void recentProtocolVersionConvertsToolSchemas(@Fusion final JsonMapper jsons) {
+        final var service = descriptors(
+                jsons,
+                Map.of("Query", object(Map.of("text", primitive("string", false)))),
+                List.of(new OpenRpc.JsonRpcMethod(
+                        "search",
+                        null,
+                        List.of(
+                                param("query", null, ref("#/schemas/Query"), true),
+                                param("q", null, primitive("string", false), null)),
+                        new OpenRpc.Result(ref("#/schemas/Query")))),
+                List.of(tool("search")));
+
+        // unknown or older protocol versions keep the raw derived schema
+        assertSame(service.tools(), service.tools(null));
+        assertSame(service.tools(), service.tools("2025-11-24"));
+        // since 2025-11-25 the 2020-12 conversion is implicit
+        final var converted = service.tools(DescriptorService.JSON_SCHEMA_2020_12_SINCE)
+                .tools()
+                .getFirst();
+        assertEquals(
+                DescriptorService.JSON_SCHEMA_2020_12_DIALECT,
+                converted.inputSchema().schema());
+        assertFalse((Boolean) converted.inputSchema().additionalProperties());
+        assertEquals(
+                "#/$defs/query",
+                converted.inputSchema().properties().get("query").ref());
+        // a primitive parameter is left as-is
+        assertEquals("string", converted.inputSchema().properties().get("q").type());
+        assertEquals(
+                "string",
+                converted
+                        .inputSchema()
+                        .defs()
+                        .get("query")
+                        .properties()
+                        .get("text")
+                        .type());
+        // the output schema is converted the same way
+        assertEquals("string", converted.outputSchema().properties().get("text").type());
+    }
+
+    @Test
+    void recentProtocolVersionKeepsAnAlready202012Schema(@Fusion final JsonMapper jsons) {
+        final var override = JsonSchema.string("search").withDialect(DescriptorService.JSON_SCHEMA_2020_12_DIALECT);
+        final var service = descriptors(
+                jsons,
+                Map.of(),
+                List.of(new OpenRpc.JsonRpcMethod("search", null, List.of(), null)),
+                List.of(tool("search")),
+                Map.of("search", override));
+
+        final var converted = service.tools(DescriptorService.JSON_SCHEMA_2020_12_SINCE)
+                .tools()
+                .getFirst()
+                .inputSchema();
+        assertSame(override, converted);
+        assertEquals(DescriptorService.JSON_SCHEMA_2020_12_DIALECT, converted.schema());
+    }
+
+    @Test
+    void explicit202012DialectConvertsTheDerivedSchema(@Fusion final JsonMapper jsons) {
+        final var service = descriptors(
+                jsons,
+                Map.of("Query", object(Map.of("text", primitive("string", false)))),
+                List.of(new OpenRpc.JsonRpcMethod(
+                        "search", null, List.of(param("query", null, ref("#/schemas/Query"), true)), null)),
+                List.of(tool(
+                        "search",
+                        Map.of(
+                                DescriptorService.SCHEMA_DIALECT_METADATA,
+                                DescriptorService.JSON_SCHEMA_2020_12_DIALECT),
+                        params -> completedFuture(null))));
+
+        final var converted = service.tools().tools().getFirst().inputSchema();
+        assertEquals(DescriptorService.JSON_SCHEMA_2020_12_DIALECT, converted.schema());
+        assertEquals("#/$defs/query", converted.properties().get("query").ref());
+    }
+
+    @Test
+    void anExplicitToolSchemaWinsOverTheDialectConversion(@Fusion final JsonMapper jsons) {
+        // a @MCPJsonSchema202012 tool whose schema is provided by hand: the hand-built one is already 2020-12, the
+        // dialect conversion of the derived schema would only lose the SEP-2106 keywords it carries
+        final var override = JsonSchema.object("Overridden", Map.of("q", JsonSchema.string("Q")), List.of());
+        final var service = descriptors(
+                jsons,
+                Map.of(),
+                List.of(new OpenRpc.JsonRpcMethod(
+                        "search", null, List.of(param("query", null, primitive("string", false), null)), null)),
+                List.of(tool(
+                        "search",
+                        Map.of(
+                                DescriptorService.SCHEMA_DIALECT_METADATA,
+                                DescriptorService.JSON_SCHEMA_2020_12_DIALECT),
+                        params -> completedFuture(null))),
+                Map.of("search", override));
+
+        assertSame(override, service.tools().tools().getFirst().inputSchema());
+    }
+
+    @Test
+    void laterMCPToolSchemasWinOnDuplicateNames(@Fusion final JsonMapper jsons) {
+        final var document =
+                new OpenRpc(Map.of(), Map.of("search", new OpenRpc.JsonRpcMethod("search", null, List.of(), null)));
+        final var service = new DescriptorService(
+                new OpenRpcService(jsons) {
+                    @Override
+                    public OpenRpc load() {
+                        return document;
+                    }
+                },
+                new io.yupiik.fusion.jsonrpc.JsonRpcRegistry(List.of(tool("search"))),
+                jsons,
+                List.of(
+                        new io.yupiik.fusion.mcp.api.MCPToolSchemas() {
+                            @Override
+                            public Map<String, JsonSchema> toolSchemas() {
+                                return Map.of("search", JsonSchema.string("first"));
+                            }
+                        },
+                        new io.yupiik.fusion.mcp.api.MCPToolSchemas() {
+                            @Override
+                            public Map<String, JsonSchema> toolSchemas() {
+                                return Map.of("search", JsonSchema.string("second"));
+                            }
+                        }));
+
+        assertEquals("second", service.tools().tools().getFirst().inputSchema().description());
+    }
+
+    @Test
+    void mcpToolSchemasOverrideTheDerivedSchema(@Fusion final JsonMapper jsons) {
+        final var service = descriptors(
+                jsons,
+                Map.of(),
+                List.of(new OpenRpc.JsonRpcMethod(
+                        "search", null, List.of(param("query", null, primitive("string", false), null)), null)),
+                List.of(tool("search")),
+                Map.of("search", JsonSchema.object("Overridden", Map.of("q", JsonSchema.string("Q")), List.of())));
+
+        final var input = service.tools().tools().getFirst().inputSchema();
+        assertEquals("Overridden", input.description());
+        assertEquals("Q", input.properties().get("q").description());
+    }
+
+    @Test
+    void jsonSchemaKeywordsAreCarriedToTheMCPModel(@Fusion final JsonMapper jsons) {
+        final var service = descriptors(
+                jsons,
+                Map.of(),
+                List.of(new OpenRpc.JsonRpcMethod(
+                        "rich",
+                        null,
+                        List.of(param(
+                                "thing",
+                                null,
+                                new OpenRpc.JsonSchema(
+                                        null,
+                                        null,
+                                        DescriptorService.JSON_SCHEMA_2020_12_DIALECT,
+                                        Map.of("T", object(Map.of("x", primitive("string", true)))),
+                                        "object",
+                                        true,
+                                        null,
+                                        null,
+                                        null,
+                                        Map.of("x", primitive("string", true)),
+                                        null,
+                                        null,
+                                        null),
+                                null)),
+                        null)),
+                List.of(tool("rich")));
+
+        final var thing =
+                service.tools().tools().getFirst().inputSchema().properties().get("thing");
+        assertEquals(DescriptorService.JSON_SCHEMA_2020_12_DIALECT, thing.schema());
+        assertEquals("string", thing.defs().get("T").properties().get("x").type());
+    }
+
+    @Test
+    void completionProvidersAreExposed(@Fusion final JsonMapper jsons) {
+        final var service = descriptors(
+                jsons,
+                Map.of(),
+                List.of(
+                        method("complete/list"),
+                        method("complete/map"),
+                        method("complete/other"),
+                        method("complete/ko")),
+                List.of(
+                        StubJsonRpcMethod.completion("complete/list", params -> completedFuture(List.of("a", "b"))),
+                        StubJsonRpcMethod.completion(
+                                "complete/map",
+                                params -> completedFuture(new CompleteResult.Completion(true, 42, List.of("x")))),
+                        StubJsonRpcMethod.completion("complete/other", params -> completedFuture("not-a-completion")),
+                        StubJsonRpcMethod.completion(
+                                "complete/ko",
+                                params -> completedFuture(new java.util.concurrent.CompletableFuture<String>()
+                                        .completeExceptionally(new IllegalStateException("boom"))))));
+
+        assertEquals(4, service.completionProviders().size());
+        final var ref = new CompletionRef(null, null, null, null);
+        final var argument = new CompletionArgument("name", "val");
+        final var context = new CompletionContext(Map.of("name", "val"));
+        // providers are sorted by method name: ko, list, map, other
+        assertNull(service.completionProviders().get(0).complete(ref, argument, context));
+        final var asList = service.completionProviders().get(1).complete(ref, argument, context);
+        assertFalse(asList.hasMore());
+        assertEquals(List.of("a", "b"), asList.values());
+        final var asCompletion = service.completionProviders().get(2).complete(ref, argument, context);
+        assertTrue(asCompletion.hasMore());
+        assertEquals(42, asCompletion.total());
+        assertEquals(List.of("x"), asCompletion.values());
+        assertNull(service.completionProviders().get(3).complete(ref, argument, context));
+    }
+
+    @Test
     void arrayItemsEnumFormatAndPatternAreCarried(@Fusion final JsonMapper jsons) {
         final var service = descriptors(
                 jsons,
@@ -264,6 +617,8 @@ class DescriptorServiceTest {
                                         "direction",
                                         null,
                                         new OpenRpc.JsonSchema(
+                                                null,
+                                                null,
                                                 null,
                                                 null,
                                                 "string",
@@ -280,6 +635,8 @@ class DescriptorServiceTest {
                                         "when",
                                         null,
                                         new OpenRpc.JsonSchema(
+                                                null,
+                                                null,
                                                 null,
                                                 null,
                                                 "string",
@@ -320,6 +677,8 @@ class DescriptorServiceTest {
                                         new OpenRpc.JsonSchema(
                                                 null,
                                                 null,
+                                                null,
+                                                null,
                                                 "object",
                                                 true,
                                                 null,
@@ -335,7 +694,8 @@ class DescriptorServiceTest {
                                         "free",
                                         null,
                                         new OpenRpc.JsonSchema(
-                                                null, null, "object", true, null, null, null, null, true, null, null),
+                                                null, null, null, null, "object", true, null, null, null, null, true,
+                                                null, null),
                                         null)),
                         null)),
                 List.of(tool("maps")));
@@ -480,6 +840,15 @@ class DescriptorServiceTest {
             final Map<String, OpenRpc.JsonSchema> schemas,
             final List<OpenRpc.JsonRpcMethod> descriptors,
             final List<io.yupiik.fusion.jsonrpc.impl.JsonRpcMethod> deployed) {
+        return descriptors(jsons, schemas, descriptors, deployed, Map.of());
+    }
+
+    private DescriptorService descriptors(
+            final JsonMapper jsons,
+            final Map<String, OpenRpc.JsonSchema> schemas,
+            final List<OpenRpc.JsonRpcMethod> descriptors,
+            final List<io.yupiik.fusion.jsonrpc.impl.JsonRpcMethod> deployed,
+            final Map<String, JsonSchema> toolSchemaOverrides) {
         final var document = new OpenRpc(
                 schemas,
                 descriptors.stream().collect(java.util.stream.Collectors.toMap(OpenRpc.JsonRpcMethod::name, it -> it)));
@@ -491,7 +860,13 @@ class DescriptorServiceTest {
                     }
                 },
                 new io.yupiik.fusion.jsonrpc.JsonRpcRegistry(deployed),
-                jsons);
+                jsons,
+                List.of(new io.yupiik.fusion.mcp.api.MCPToolSchemas() {
+                    @Override
+                    public Map<String, JsonSchema> toolSchemas() {
+                        return toolSchemaOverrides;
+                    }
+                }));
     }
 
     private OpenRpc.JsonRpcMethod method(final String name) {
@@ -504,22 +879,24 @@ class DescriptorServiceTest {
     }
 
     private OpenRpc.JsonSchema primitive(final String type, final Boolean nullable) {
-        return new OpenRpc.JsonSchema(null, null, type, nullable, null, null, null, null, null, null, null);
+        return new OpenRpc.JsonSchema(null, null, null, null, type, nullable, null, null, null, null, null, null, null);
     }
 
     private OpenRpc.JsonSchema described(final String description) {
-        return new OpenRpc.JsonSchema(null, null, "string", true, description, null, null, null, null, null, null);
+        return new OpenRpc.JsonSchema(
+                null, null, null, null, "string", true, description, null, null, null, null, null, null);
     }
 
     private OpenRpc.JsonSchema ref(final String ref) {
-        return new OpenRpc.JsonSchema(ref, null, null, null, null, null, null, null, null, null, null);
+        return new OpenRpc.JsonSchema(ref, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private OpenRpc.JsonSchema object(final Map<String, OpenRpc.JsonSchema> properties) {
-        return new OpenRpc.JsonSchema(null, null, "object", true, null, null, null, properties, null, null, null);
+        return new OpenRpc.JsonSchema(
+                null, null, null, null, "object", true, null, null, null, properties, null, null, null);
     }
 
     private OpenRpc.JsonSchema array(final OpenRpc.JsonSchema items) {
-        return new OpenRpc.JsonSchema(null, null, "array", true, null, null, null, null, null, items, null);
+        return new OpenRpc.JsonSchema(null, null, null, null, "array", true, null, null, null, null, null, items, null);
     }
 }

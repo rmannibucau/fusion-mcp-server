@@ -37,6 +37,14 @@ import java.util.Map;
  * @param enumeration          the closed set of allowed values.
  * @param enumNames            the human oriented labels of {@code enumeration}, same order and size.
  * @param required             the names of the mandatory properties.
+ * @param allOf                sub-schemas that must all validate (SEP-2106 {@code allOf}).
+ * @param anyOf                sub-schemas, at least one of which must validate (SEP-2106 {@code anyOf}).
+ * @param oneOf                sub-schemas, exactly one of which must validate (SEP-2106 {@code oneOf}).
+ * @param not                  schema the value must not validate against (SEP-2106 {@code not}).
+ * @param ifCondition          conditional schema (SEP-2106 {@code if}).
+ * @param thenSchema           schema applied when the conditional schema validates (SEP-2106 {@code then}).
+ * @param elseSchema           schema applied when the conditional schema does not validate (SEP-2106 {@code else}).
+ * @param anchor               plain-name fragment identifier inside the schema (SEP-2106 {@code $anchor}).
  */
 @JsonModel
 public record JsonSchema(
@@ -86,10 +94,78 @@ public record JsonSchema(
         Integer maxLength,
 
         @Property(documentation = "Value used when the property is absent.") @JsonProperty("default")
-        Object defaultValue) {
+        Object defaultValue,
+
+        @Property(documentation = "The JSON-Schema dialect, 2020-12 when absent.") @JsonProperty("$schema")
+        String schema,
+
+        @Property(documentation = "Named reusable definitions, e.g. an address.") @JsonProperty("$defs")
+        Map<String, JsonSchema> defs,
+
+        @Property(documentation = "Reference to a definition in {@code $defs}.") @JsonProperty("$ref")
+        String ref,
+
+        @Property(documentation = "Transport hint: the parameter can be sent through the Mcp-Param-<suffix> header.")
+        @JsonProperty("x-mcp-header")
+        String xMcpHeader,
+
+        @Property(documentation = "Sub-schemas that must all validate.")
+        List<JsonSchema> allOf,
+
+        @Property(documentation = "Sub-schemas, at least one of which must validate.")
+        List<JsonSchema> anyOf,
+
+        @Property(documentation = "Sub-schemas, exactly one of which must validate.")
+        List<JsonSchema> oneOf,
+
+        @Property(documentation = "Schema the value must not validate against.")
+        JsonSchema not,
+
+        @Property(documentation = "Conditional schema.") @JsonProperty("if")
+        JsonSchema ifCondition,
+
+        @Property(documentation = "Schema applied when the conditional schema validates.") @JsonProperty("then")
+        JsonSchema thenSchema,
+
+        @Property(documentation = "Schema applied when the conditional schema does not validate.") @JsonProperty("else")
+        JsonSchema elseSchema,
+
+        @Property(documentation = "Plain-name fragment identifier inside the schema.") @JsonProperty("$anchor")
+        String anchor,
+
+        @Property(documentation = "A literal value the instance must equal.") @JsonProperty("const")
+        Object constant) {
     public static JsonSchema of(final String type, final String description) {
         return new JsonSchema(
-                type, null, description, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                type,
+                null,
+                description,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     public static JsonSchema string(final String description) {
@@ -103,6 +179,19 @@ public record JsonSchema(
                 description,
                 format,
                 pattern,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -145,6 +234,19 @@ public record JsonSchema(
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null);
     }
 
@@ -158,6 +260,19 @@ public record JsonSchema(
                 null,
                 null,
                 items,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -186,6 +301,19 @@ public record JsonSchema(
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null);
     }
 
@@ -210,6 +338,503 @@ public record JsonSchema(
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null);
+    }
+
+    /**
+     * @param suffix the {@code Mcp-Param-<suffix>} header the parameter is sent through.
+     * @return a copy carrying the {@code x-mcp-header} transport hint.
+     */
+    public JsonSchema withHeader(final String suffix) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                ref,
+                suffix,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                null);
+    }
+
+    /**
+     * @param dialect the JSON-Schema dialect, {@code https://json-schema.org/draft/2020-12/schema} for example.
+     * @return a copy carrying the {@code $schema} keyword.
+     */
+    public JsonSchema withDialect(final String dialect) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                dialect,
+                defs,
+                ref,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                null);
+    }
+
+    /**
+     * @param namedDefs the reusable definitions, keyed by name.
+     * @return a copy carrying the {@code $defs} keyword.
+     */
+    public JsonSchema withDefs(final Map<String, JsonSchema> namedDefs) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                namedDefs,
+                ref,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                null);
+    }
+
+    /**
+     * @param reference a JSON pointer to a definition in {@code $defs}, {@code #/$defs/address} for example.
+     * @return a copy carrying the {@code $ref} keyword.
+     */
+    /**
+     * @param value the value used when the property is absent - the {@code default} keyword.
+     * @return a copy carrying the default value.
+     */
+    public JsonSchema withDefault(final Object value) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                value,
+                schema,
+                defs,
+                ref,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                constant);
+    }
+
+    public JsonSchema withRef(final String reference) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                reference,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                null);
+    }
+
+    /**
+     * @param value the human oriented name of the schema.
+     * @return a copy carrying the {@code title}.
+     */
+    public JsonSchema withTitle(final String value) {
+        return new JsonSchema(
+                type,
+                value,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                ref,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                constant);
+    }
+
+    /**
+     * @param names the human oriented labels of the allowed values, same order as {@code enum}.
+     * @return a copy carrying the {@code enumNames}.
+     */
+    public JsonSchema withEnumNames(final List<String> names) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                names,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                ref,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                constant);
+    }
+
+    /**
+     * @param alternatives the sub-schemas, exactly one of which must validate.
+     * @return a copy carrying the {@code oneOf} keyword.
+     */
+    public JsonSchema withOneOf(final List<JsonSchema> alternatives) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                ref,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                alternatives,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                constant);
+    }
+
+    /**
+     * @param literal a literal value the instance must equal.
+     * @return a copy carrying the {@code const} keyword.
+     */
+    public JsonSchema withConst(final Object literal) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                ref,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                literal);
+    }
+
+    /**
+     * @param composition the sub-schemas that must all validate.
+     * @return a copy carrying the {@code allOf} keyword.
+     */
+    public JsonSchema withAllOf(final List<JsonSchema> composition) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                ref,
+                xMcpHeader,
+                composition,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                constant);
+    }
+
+    /**
+     * @param alternatives the sub-schemas, at least one of which must validate.
+     * @return a copy carrying the {@code anyOf} keyword.
+     */
+    public JsonSchema withAnyOf(final List<JsonSchema> alternatives) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                ref,
+                xMcpHeader,
+                allOf,
+                alternatives,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                anchor,
+                constant);
+    }
+
+    /**
+     * @param conditional the conditional schema.
+     * @param consequent  the schema applied when the conditional one validates.
+     * @param alternate   the schema applied when the conditional one does not validate.
+     * @return a copy carrying the {@code if}/{@code then}/{@code else} keywords.
+     */
+    public JsonSchema withConditional(
+            final JsonSchema conditional, final JsonSchema consequent, final JsonSchema alternate) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                ref,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                conditional,
+                consequent,
+                alternate,
+                anchor,
+                constant);
+    }
+
+    /**
+     * @param plainName a plain-name fragment identifier inside the schema.
+     * @return a copy carrying the {@code $anchor} keyword.
+     */
+    public JsonSchema withAnchor(final String plainName) {
+        return new JsonSchema(
+                type,
+                title,
+                description,
+                format,
+                pattern,
+                properties,
+                additionalProperties,
+                items,
+                enumeration,
+                enumNames,
+                required,
+                minimum,
+                maximum,
+                minLength,
+                maxLength,
+                defaultValue,
+                schema,
+                defs,
+                ref,
+                xMcpHeader,
+                allOf,
+                anyOf,
+                oneOf,
+                not,
+                ifCondition,
+                thenSchema,
+                elseSchema,
+                plainName,
+                constant);
     }
 }

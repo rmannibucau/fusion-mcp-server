@@ -23,13 +23,29 @@ import java.util.List;
 /**
  * {@code prompts/list} result, it is computed from the JSON-RPC methods flagged with
  * {@code io.yupiik.fusion.mcp.api.MCPPrompt}.
+ * <p>
+ * The {@code resultType}, {@code ttlMs}, {@code cacheScope} and {@code _meta} fields belong to the
+ * {@code 2026-07-28} protocol version: they stay {@code null} - and are omitted on the wire - for the legacy
+ * versions.
  */
 @JsonModel
 public record ListPromptsResponse(
         @Property(documentation = "The available prompts.") List<Prompt> prompts,
 
         @Property(documentation = "Cursor to pass to the next call, absent when everything was returned.")
-        String nextCursor) {
+        String nextCursor,
+
+        @Property(documentation = "The type of this result, see the {@code 2026-07-28} specification.")
+        ResultType resultType,
+
+        @Property(documentation = "How long, in milliseconds, the client may cache this result.")
+        Long ttlMs,
+
+        @Property(documentation = "The scope the client may share this cache entry at.")
+        String cacheScope,
+
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata) {
     @JsonModel
     public record Prompt(
             @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
@@ -45,7 +61,10 @@ public record ListPromptsResponse(
             String description,
 
             @Property(documentation = "The arguments the prompt takes, all strings.")
-            List<Argument> arguments) {
+            List<Argument> arguments,
+
+            @Property(documentation = "Optional visual identifiers for the prompt.")
+            List<Icon> icons) {
         @JsonModel
         public record Argument(
                 @Property(documentation = "Human oriented name of the argument.")

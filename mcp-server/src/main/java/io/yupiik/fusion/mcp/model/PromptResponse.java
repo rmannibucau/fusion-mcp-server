@@ -34,12 +34,23 @@ public record PromptResponse(
         String description,
 
         @Property(documentation = "The messages the prompt expands to.")
-        List<Message> messages) {
+        List<Message> messages,
+
+        @Property(documentation = "The type of this result, see the {@code 2026-07-28} specification.")
+        ResultType resultType) {
     @JsonModel
     public record Message(
             @Property(documentation = "Who the message comes from.")
             Role role,
 
-            @Property(documentation = "The message content.")
-            Content content) {}
+            @Property(documentation = "The message content, a single block or an array of blocks.")
+            Object content) {
+        public static Message of(final Role role, final Content content) {
+            return new Message(role, content);
+        }
+
+        public static Message of(final Role role, final List<Content> content) {
+            return new Message(role, content);
+        }
+    }
 }

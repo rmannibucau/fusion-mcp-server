@@ -20,6 +20,8 @@ import static java.net.http.HttpResponse.BodyHandlers.ofString;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.yupiik.fusion.json.JsonMapper;
+import io.yupiik.fusion.mcp.model.MCPResult;
+import io.yupiik.fusion.mcp.model.ServerDiscoverResponse;
 import io.yupiik.fusion.mcp.protocol.MCPProtocol;
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -30,6 +32,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -66,6 +69,12 @@ public class MCPClient implements AutoCloseable {
 
     private volatile String session;
     private volatile BufferedReader sse;
+    /**
+     * The stateless protocol version once {@link #discover()} was called: {@code null} until then. When set every
+     * {@code POST} carries the {@code MCP-Protocol-Version} header and no {@code Mcp-Session-Id} - the stateless
+     * protocol has no session.
+     */
+    private volatile String statelessProtocolVersion;
 
     /**
      * @param endpoint the MCP endpoint, {@code http://localhost:8080/mcp} for example.
@@ -135,6 +144,70 @@ public class MCPClient implements AutoCloseable {
      */
     public CompletionStage<HttpResponse<String>> initialize() {
         return initialize("{}");
+    }
+
+    /**
+     * Runs the stateless handshake - {@code server/discover} - over the {@code 2026-07-28} protocol version and
+     * switches this client to the <b>stateless</b> mode: from now on every {@code POST} carries the
+     * {@code MCP-Protocol-Version} header and no {@code Mcp-Session-Id}, as the stateless protocol has no session.
+     *
+     * @return the server advertisement, ready to be read by a {@code @@JsonModel} aware caller.
+     */
+    public CompletionStage<ServerDiscoverResponse> discover() {
+        return discover(MCPProtocol.STATELESS_VERSIONS.getFirst());
+    }
+
+    /**
+     * @param protocolVersion the stateless protocol version to negotiate, defaults to the first one this client is
+     *                        built with.
+     * @return the {@code server/discover} result, {@link ServerDiscoverResponse}.
+     */
+    public CompletionStage<ServerDiscoverResponse> discover(final String protocolVersion) {
+        return postWithProtocol("""
+                {"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}}""", protocolVersion).thenApply(response -> {
+            statelessProtocolVersion = protocolVersion;
+            try {
+                return jsonMapper.fromString(ServerDiscoverResponse.class, resultOf(response.body()));
+            } catch (final RuntimeException re) {
+                throw new IllegalStateException("Can't read the discover result: " + response.body(), re);
+            }
+        });
+    }
+
+    /**
+     * @return {@code true} when this client runs the stateless protocol since {@link #discover()} was called.
+     */
+    public boolean isStateless() {
+        return statelessProtocolVersion != null;
+    }
+
+    /**
+     * Extracts the {@code result} of a method reply as an {@link MCPResult} - the union a stateless server returns -
+     * so a caller can look at {@link MCPResult#resultType()} and, for an {@code input_required} one, at its
+     * {@link MCPResult#inputRequests()}.
+     *
+     * @param response the {@code tools/call} - or {@code prompts/get} - reply.
+     * @return the typed result.
+     */
+    public MCPResult result(final HttpResponse<String> response) {
+        return result(response.body());
+    }
+
+    /**
+     * Extracts the {@code result} of a method reply body as an {@link MCPResult} - the union a stateless server
+     * returns - so a caller can look at {@link MCPResult#resultType()} and, for an {@code input_required} one, at its
+     * {@link MCPResult#inputRequests()}.
+     *
+     * @param jsonRpcBody a raw JSON-RPC reply, {@code {"jsonrpc":"2.0","id":..,"result":..}}.
+     * @return the typed result.
+     */
+    public MCPResult result(final String jsonRpcBody) {
+        return jsonMapper.fromString(MCPResult.class, resultOf(jsonRpcBody));
+    }
+
+    private String resultOf(final String body) {
+        return jsonMapper.toString(
+                jsonMapper.fromString(java.util.Map.class, body).get("result"));
     }
 
     /**
@@ -320,19 +393,103 @@ public class MCPClient implements AutoCloseable {
     }
 
     private HttpRequest request(final String body) {
+        final var withMeta = withStatelessMeta(body, statelessProtocolVersion);
         final var builder = HttpRequest.newBuilder(endpoint)
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .POST(HttpRequest.BodyPublishers.ofString(withMeta))
                 // a MCP client must accept both, the server picks the one it needs
                 .header("accept", "application/json, text/event-stream")
                 .header("content-type", "application/json");
+        withHeaders(builder, withMeta, statelessProtocolVersion);
+        withProtocol(builder);
         withSession(builder);
         return builder.build();
     }
 
     private void withSession(final HttpRequest.Builder builder) {
+        if (isStateless()) {
+            return; // the stateless protocol has no session
+        }
         final var current = session;
         if (current != null) {
             builder.header(MCPProtocol.SESSION_HEADER, current);
+        }
+    }
+
+    private void withProtocol(final HttpRequest.Builder builder) {
+        final var version = statelessProtocolVersion;
+        if (version != null) {
+            builder.header(MCPProtocol.PROTOCOL_VERSION_HEADER, version);
+        }
+    }
+
+    private CompletionStage<HttpResponse<String>> postWithProtocol(final String body, final String protocolVersion) {
+        return http.sendAsync(requestWithProtocol(body, protocolVersion), ofString());
+    }
+
+    private HttpRequest requestWithProtocol(final String body, final String protocolVersion) {
+        final var withMeta = withStatelessMeta(body, protocolVersion);
+        final var builder = HttpRequest.newBuilder(endpoint)
+                .POST(HttpRequest.BodyPublishers.ofString(withMeta))
+                .header("accept", "application/json, text/event-stream")
+                .header("content-type", "application/json")
+                .header(MCPProtocol.PROTOCOL_VERSION_HEADER, protocolVersion);
+        withHeaders(builder, withMeta, protocolVersion);
+        return builder.build();
+    }
+
+    /**
+     * A stateless request must carry the {@code Mcp-Method} - and, on {@code tools/call}/{@code resources/read}, the
+     * {@code Mcp-Name} - headers so routing intermediaries can dispatch the fire-and-forget responses.
+     */
+    private void withHeaders(final HttpRequest.Builder builder, final String json, final String version) {
+        if (version == null) {
+            return; // legacy, the method lives only in the body
+        }
+        final Object body;
+        try {
+            body = jsonMapper.fromString(Map.class, json);
+        } catch (final RuntimeException re) {
+            return;
+        }
+        if (body instanceof Map<?, ?> map && map.get("method") instanceof String method) {
+            builder.header(MCPProtocol.METHOD_HEADER, method);
+            if (map.get("params") instanceof Map<?, ?> params && params.get("name") != null) {
+                builder.header(MCPProtocol.NAME_HEADER, String.valueOf(params.get("name")));
+            }
+        }
+    }
+
+    /**
+     * A stateless request must declare its protocol version and client capabilities in {@code _meta}: inject the
+     * standard per-request metadata into the {@code params} of a JSON-RPC request when it is not already there.
+     *
+     * @param json    the serialized JSON-RPC request.
+     * @param version the stateless protocol version this request is sent on, {@code null} when not stateless.
+     */
+    @SuppressWarnings("unchecked")
+    private String withStatelessMeta(final String json, final String version) {
+        if (json == null) {
+            return json;
+        }
+        try {
+            final var message = jsonMapper.fromString(java.util.Map.class, json);
+            if (message.get("params") instanceof java.util.Map<?, ?> rawParams
+                    && version != null
+                    && !rawParams.containsKey("_meta")) {
+                @SuppressWarnings("unchecked")
+                final var params = (java.util.Map<String, Object>) rawParams;
+                final var meta = new java.util.LinkedHashMap<String, Object>();
+                meta.put(MCPProtocol.PROTOCOL_VERSION_META, version);
+                meta.put(
+                        MCPProtocol.CLIENT_INFO_META,
+                        java.util.Map.of("name", "fusion-mcp-test-client", "version", "1.0.0"));
+                meta.put(MCPProtocol.CLIENT_CAPABILITIES_META, java.util.Map.of());
+                params.put("_meta", meta);
+                return jsonMapper.toString(message);
+            }
+            return json;
+        } catch (final RuntimeException re) {
+            return json; // not a JSON-RPC map we can rewrite, let the server decide
         }
     }
 }
