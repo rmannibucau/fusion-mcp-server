@@ -1,0 +1,137 @@
+= Design
+:minisite-nav-prev-label: Internals
+:minisite-nav-prev-link: index.html
+:minisite-nav-next-label: Testing
+:minisite-nav-next-link: testing.html
+
+This page is for contributors, and for anyone wanting to know what happens between an HTTP request and a tool call.
+
+== Principle
+
+MCP is JSON-RPC 2.0. Fusion already generates a complete JSON-RPC stack at build time, so the implementation is
+mostly *wiring* rather than protocol code:
+
+* the MCP methods are plain `@JsonRpc` methods (`MCPJSONRPCProtocol`) registered in the same registry as the
+application ones,
+* `tools/call` re-enters `JsonRpcHandler`, so a tool invocation follows the exact same code path as a direct JSON-RPC
+call - binding, validation, error mapping included,
+* the descriptors come from the OpenRPC document the annotation processor writes in
+`META-INF/fusion/jsonrpc/openrpc.json`,
+* only the *transport* is specific: sessions, SSE, headers, and the routing of client responses.
+
+== Class map
+
+[options="header",cols="1,3"]
+|===
+| Class | Role
+| `protocol.MCPEndpoint` | `POST /mcp`. Session resolution, protocol version validation, `202` for notifications, routing of client responses, then delegation to `JsonRpcHandler`.
+| `protocol.MCPSSEProtocol` | `GET /mcp` (the event stream, `Last-Event-ID` resumption) and `DELETE /mcp` (termination).
+| `protocol.MCPJSONRPCProtocol` | every MCP method, as `@JsonRpc` methods.
+| `protocol.MCPSession` | one connection state: negotiated version, client capabilities, logging level, subscriptions, pending server requests, SSE queue. Also the API to talk to that client.
+| `protocol.MCPSessions` | the live sessions, their creation, lookup, expiration and the binding to the current request.
+| `protocol.SseBus` | the `text/event-stream` body: a demand aware, buffered queue of frames with a replay window.
+| `protocol.MCPProtocol` | supported versions, header names, negotiation.
+| `service.OpenRpcService` | loads and merges the OpenRPC documents, inlines their `$ref`s.
+| `service.DescriptorService` | turns the JSON-RPC methods flagged `mcp.type` into `tools/list` and `prompts/list` results.
+| `api.*` | what an application uses: `@MCPTool`, `@MCPPrompt`, `MCPResources`, `MCPCompletions`, `MCPNotifier`.
+| `model.*` | the wire model, one `@JsonModel` record per MCP structure, generated codecs.
+| `client.MCPClient` | a minimal MCP client, shipped in the main artifact.
+|===
+
+== A tool call, step by step
+
+[source,text]
+----
+POST /mcp  {"method":"tools/call","params":{"name":"my/tool","arguments":{...}}}
+ |
+ |-- MCPEndpoint                     read the body once, split requests / notifications / client responses
+ |     validate MCP-Protocol-Version -> 400 if unsupported
+ |     resolve Mcp-Session-Id        -> 404 if unknown, create it when the call is initialize
+ |     bind the session on the request attribute
+ |
+ |-- JsonRpcHandler.execute          the standard Fusion dispatch
+ |     |
+ |     |-- MCPJSONRPCProtocol#callTool
+ |           descriptors.isTool(name)  -> -32602 when it is not an @MCPTool method
+ |           handler.execute({method: name, params: arguments})   nested, same stack
+ |             |
+ |             |-- the application method, bound and invoked by generated code
+ |           map the result: ToolResponse as is, else structuredContent + text block
+ |           map a failure: isError = true, unless the error code is a reserved JSON-RPC one
+ |
+ |-- MCPEndpoint                     write the JSON-RPC response (200), or 202 when there is nothing to answer
+----
+
+== Decisions worth knowing
+
+*Own the `POST` endpoint.* The Fusion JSON-RPC endpoint cannot express the MCP transport: session headers with their
+`400`/`404` semantics, `202` for notifications, and above all the client *responses* - a JSON-RPC message without
+`method`, which the standard validation rejects. `MCPEndpoint` is therefore registered with `@Order(900)`, before the
+Fusion one (`1000`), and delegates all the JSON-RPC work to the same handler. Bean lookups are sorted by ascending
+priority and the first matching endpoint wins, which makes the precedence deterministic.
+
+*Descriptors computed once, at startup.* Tools and prompts are known at build time, so `tools/list` is a constant. It
+also means `tools/list` never runs user code and cannot fail.
+
+*An allow list for `tools/call`.* Without it, `tools/call` would reach every JSON-RPC method of the application - and
+the MCP protocol methods themselves. Only `mcp.type=tool` methods are callable.
+
+*Tool failures are results.* The specification wants an execution failure inside the result (`isError: true`) so the
+model can read and react to it; only an invalid call is a JSON-RPC error. The frontier used here is the reserved code
+range (`-32700`, `-32600`..`-32603`).
+
+*Merge all the OpenRPC documents.* There is one per module using the processor - one for this library, one for the
+application - so reading a single classpath resource would drop the methods of every other module depending on the
+classpath order.
+
+*Resources through a SPI, tools through annotations.* Tools and prompts are code, known at build time; resources are
+data, discovered at runtime. Hence `@MCPTool`/`@MCPPrompt` on one side and the `MCPResources` bean on the other.
+
+*Buffer the server to client messages.* A tool can send a request before the client opens its stream, and a client
+can reconnect. `SseBus` therefore queues frames, respects the subscriber demand and keeps a replay window of 128
+messages for `Last-Event-ID`.
+
+== Notes on the wire model
+
+Every MCP structure is a `@JsonModel` record in `model`, so its codec is generated - no reflection, GraalVM friendly.
+Naming follows the specification: `XxxResponse` is a JSON-RPC `result`, `XxxParameters` a `params`,
+`XxxNotification` the `params` of a notification. Two pairs are easy to confuse and deliberately named after the
+specification: `Resource` (descriptor) versus `ResourceContents` (payload), and `Capabilities` (the client ones, in
+`initialize` params) versus `InitializeResponse.Capabilities` (the server ones).
+
+Optionality is expressed the JSON-Schema way. The Fusion OpenRPC document flags each schema with `nullable`, MCP
+needs a `required` list on the enclosing object, and `DescriptorService` does that translation.
+
+== Specification coverage
+
+[options="header",cols="2,1,2"]
+|===
+| Feature | Status | Notes
+| `initialize`, `notifications/initialized`, `ping` | ✅ | Version negotiation, session creation.
+| `tools/list`, `tools/call` | ✅ | From `@MCPTool`, with `outputSchema` and `structuredContent`.
+| `prompts/list`, `prompts/get` | ✅ | From `@MCPPrompt`.
+| `resources/list`, `read`, `templates/list`, `subscribe`, `unsubscribe` | ✅ | From `MCPResources`.
+| `completion/complete` | ✅ | From `MCPCompletions`.
+| `logging/setLevel`, `notifications/message` | ✅ | Per session filtering.
+| `notifications/*/list_changed`, `notifications/resources/updated` | ✅ | Through `MCPNotifier`.
+| `sampling/createMessage`, `elicitation/create`, `roots/list` | ✅ | Through `MCPSession`, correlated over the SSE channel.
+| `notifications/progress` | ✅ | Outgoing; incoming ones are accepted and ignored.
+| `notifications/cancelled` | ⚠️ | Accepted and logged; the running invocation is not interrupted.
+| Pagination (`nextCursor`) | ⚠️ | Not needed: every listing is computed once and returned at once.
+| HTTP+SSE transport (`2024-11-05`) | ❌ | Superseded by the streamable HTTP one.
+|===
+
+== Known limitations
+
+* sessions live in memory: a clustered deployment needs sticky routing on the `Mcp-Session-Id` header,
+* a tool returning `Optional<T>` has no usable `outputSchema` - and does not serialize either, Fusion has no
+`Optional` JSON codec - so return `T` or a `CompletionStage<T>`,
+* Fusion >= 1.0.38 is required: earlier releases describe an asynchronous result as a map of `T` in the generated
+OpenRPC document, which would make the `outputSchema` of every asynchronous tool wrong.
+
+== JSON-RPC reference of the protocol methods
+
+The MCP methods are plain `@JsonRpc` methods, so they end up in the OpenRPC document of the library like any other -
+this section is generated from it and therefore always matches what is deployed.
+
+include::{partialsdir}/generated/openrpc.mcp.adoc[leveloffset=+1]

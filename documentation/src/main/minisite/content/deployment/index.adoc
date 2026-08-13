@@ -1,0 +1,49 @@
+= Deployment
+:minisite-index: 300
+:minisite-index-title: Deployment
+:minisite-index-description: Set up, configure, connect a client.
+:minisite-index-icon: server
+:minisite-nav-prev-label: Server to client
+:minisite-nav-prev-link: ../mcp/server-to-client.html
+:minisite-nav-next-label: Setup
+:minisite-nav-next-link: setup.html
+
+Everything about running a MCP server and letting a client reach it.
+
+[options="header",cols="1,3"]
+|===
+| Page | Content
+| xref:setup.adoc[Setup] | requirements, dependencies, a complete server, GraalVM native image.
+| xref:configuration.adoc[Configuration] | every option, generated from the code, plus the inherited Fusion ones.
+| xref:transport.adoc[Transport] | the streamable HTTP protocol: routes, headers, sessions, SSE, negotiation.
+| xref:clients.adoc[Clients] | Claude, IDE agents, the MCP inspector, `curl`, and troubleshooting.
+| xref:conformance.adoc[Conformance] | validate against the official MCP conformance suite, for `2026-07-28` and `2025-11-25`.
+|===
+
+== The short version
+
+[source,bash]
+----
+mvn package -pl demo exec:exec           # a server on http://localhost:8080/mcp
+claude mcp add --transport http demo http://localhost:8080/mcp
+----
+
+Add `fusion-mcp-server-impl` to a Fusion application and the three routes come with it:
+
+[options="header",cols="1,3"]
+|===
+| Route | Purpose
+| `POST /mcp` | requests, notifications and responses.
+| `GET /mcp` | the server to client event stream.
+| `DELETE /mcp` | session termination.
+|===
+
+== Checklist before exposing it
+
+* set `fusion.mcp.instructions` - it is what tells the model when to use this server,
+* set `fusion.mcp.name`/`title`/`version` so the client shows something meaningful,
+* review the tool descriptions with the MCP inspector: they are the interface with the model,
+* decide the session policy, `fusion.mcp.requireSession`, and the session timeout,
+* behind a load balancer, enable sticky routing on the `Mcp-Session-Id` header,
+* put authentication in front of it if the data is not public - MCP has no opinion there, use the regular Fusion
+means.

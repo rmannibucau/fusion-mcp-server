@@ -15,17 +15,26 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
-
 import java.util.List;
 
+/**
+ * How the client should pick the model of a sampling request, all priorities are between 0 and 1.
+ */
 @JsonModel
 public record ModelPreferences(
+        @Property(documentation = "How much cost matters, from 0 to 1.")
         Integer costPriority,
+
+        @Property(documentation = "Preferred models, in order.")
         List<ModelHint> hints,
+
+        @Property(documentation = "How much capability matters, from 0 to 1.")
         Integer intelligencePriority,
-        Integer speedPriority
-) {
+
+        @Property(documentation = "How much latency matters, from 0 to 1.")
+        Integer speedPriority) {
     public static final int NOT_IMPORTANT_COST = 0;
     public static final int MOST_IMPORTANT_COST = 1;
 

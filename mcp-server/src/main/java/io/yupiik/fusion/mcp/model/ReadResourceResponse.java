@@ -15,14 +15,34 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
-
 import java.util.List;
 
+/**
+ * {@code resources/read} result, a single uri can expand to several contents.
+ * <p>
+ * The {@code resultType}, {@code ttlMs} and {@code cacheScope} fields belong to the {@code 2026-07-28} protocol
+ * version: they stay {@code null} - and are omitted on the wire - for the legacy versions.
+ */
 @JsonModel
 public record ReadResourceResponse(
-        @JsonProperty("_meta") Metadata metadata,
-        List<Resource> contents
-) {
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
+        @Property(documentation = "The contents of the resource, a single uri can expand to several.")
+        List<ResourceContents> contents,
+
+        @Property(documentation = "The type of this result, see the {@code 2026-07-28} specification.")
+        ResultType resultType,
+
+        @Property(documentation = "How long, in milliseconds, the client may cache this result.")
+        Long ttlMs,
+
+        @Property(documentation = "The scope the client may share this cache entry at.")
+        String cacheScope) {
+    public static ReadResourceResponse of(final ResourceContents... contents) {
+        return new ReadResourceResponse(null, List.of(contents), null, null, null);
+    }
 }

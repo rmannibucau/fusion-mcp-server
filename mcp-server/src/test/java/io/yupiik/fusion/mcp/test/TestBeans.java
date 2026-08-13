@@ -19,7 +19,6 @@ import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 import io.yupiik.fusion.framework.api.scope.DefaultScoped;
 import io.yupiik.fusion.framework.build.api.scanning.Bean;
 import io.yupiik.fusion.http.server.api.WebServer;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 

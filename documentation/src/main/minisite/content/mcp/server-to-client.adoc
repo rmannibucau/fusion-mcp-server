@@ -1,0 +1,162 @@
+= Server to client
+:minisite-nav-prev-label: Resources
+:minisite-nav-prev-link: resources.html
+:minisite-nav-next-label: Deployment
+:minisite-nav-next-link: ../deployment/index.html
+
+MCP is bidirectional: the server can talk to the client too. Everything it sends goes through the SSE channel the
+client opens with `GET /mcp`, and comes in two flavours:
+
+* *notifications*, one way: logging, `list_changed`, progress,
+* *requests*, awaiting an answer: sampling, elicitation, roots. The client posts its response back on `POST /mcp`.
+
+IMPORTANT: messages are buffered per session, so nothing is lost when no stream is currently open - a client
+reconnecting gets what it missed. But a client which never opens a stream never receives anything, and a request
+sent to it times out (`fusion.mcp.clientRequestTimeout`, 30s by default).
+
+== Notifications: MCPNotifier
+
+Inject `MCPNotifier` to broadcast to *all* the connected clients:
+
+[source,java]
+----
+@ApplicationScoped
+public class MyService {
+    private final MCPNotifier notifier;
+
+    public MyService(final MCPNotifier notifier) {
+        this.notifier = notifier;
+    }
+
+    public void onSomething() {
+        notifier.log(LoggingLevel.info, "my-service", "something happened");
+        notifier.resourceUpdated("app://config");
+        notifier.resourceListChanged();
+        notifier.toolListChanged();
+        notifier.promptListChanged();
+        notifier.broadcast("notifications/custom", Map.of("any", "payload"));
+    }
+}
+----
+
+[options="header",cols="2,3"]
+|===
+| Method | MCP notification
+| `log(level, logger, data)` | `notifications/message`, filtered per session with the level the client set through `logging/setLevel` - `info` by default.
+| `resourceUpdated(uri)` | `notifications/resources/updated`, only to the sessions which subscribed to that uri.
+| `resourceListChanged()` | `notifications/resources/list_changed`.
+| `toolListChanged()` / `promptListChanged()` | `notifications/tools/list_changed`, `notifications/prompts/list_changed`.
+| `progress(notification)` | `notifications/progress`.
+| `broadcast(method, params)` | anything else, the params being any `@JsonModel` record, map or list.
+|===
+
+Log levels are the syslog ones. `LoggingLevel#isEnabled(minimum)` implements the comparison - use it rather than
+`ordinal()`, the enum is declared in the JSON (alphabetical) order:
+
+[source,java]
+----
+if (LoggingLevel.debug.isEnabled(session.loggingLevel())) { // false unless the client asked for debug
+    session.log(new MessageNotification("my-service", LoggingLevel.debug, expensiveDump()));
+}
+----
+
+== Progress of a long tool
+
+When the client sends a `progressToken` in the `_meta` of its request, it expects progress notifications carrying it
+back:
+
+[source,java]
+----
+notifier.progress(new ProgressNotification(progressToken, 0.5, 1., "half way"));
+----
+
+== Requests: MCPSession
+
+A request targets *one* client, the one of the current call, so it starts from the session:
+
+[source,java]
+----
+@ApplicationScoped
+public class MyTools {
+    private final MCPSessions sessions;
+
+    public MyTools(final MCPSessions sessions) {
+        this.sessions = sessions;
+    }
+
+    @MCPTool
+    @JsonRpc(value = "my/ask", documentation = "Asks the client model to summarize a document.")
+    public CompletionStage<Summary> ask(@JsonRpcParam(required = true) final String text, final Request request) {
+        return sessions.of(request)
+                .createMessage(new CreateSamplingMessageParameters(
+                        null, 512,
+                        List.of(new SamplingMessage(Role.user, Content.text("Summarize:\n" + text))),
+                        null, null, null, "You are a summarizer.", null))
+                .thenApply(response -> new Summary(response.content().text()));
+    }
+}
+----
+
+[options="header",cols="1,2,1"]
+|===
+| MCP request | `MCPSession` method | Required client capability
+| `sampling/createMessage` | `createMessage(CreateSamplingMessageParameters)` | `sampling`
+| `elicitation/create` | `elicit(ElicitRequestParameters)` | `elicitation`
+| `roots/list` | `listRoots()` | `roots`
+| anything | `request(method, params, resultType)` | -
+|===
+
+Capabilities are declared by the client during `initialize`. Calling a method the client does not support fails fast
+with a `-32601` naming the missing capability instead of hanging until the timeout, so a tool can degrade gracefully:
+
+[source,java]
+----
+final var session = sessions.of(request);
+if (session.capabilities() == null || session.capabilities().sampling() == null) {
+    return completedFuture(new Summary(localSummary(text))); // no client model available, do it ourselves
+}
+----
+
+=== Sampling
+
+Sampling asks the *client* to run a LLM completion: the server gets model access without holding an API key, and the
+user stays in control - clients typically ask for a confirmation. `ModelPreferences` expresses what matters
+(`costPriority`, `speedPriority`, `intelligencePriority`, plus `hints`), it is advisory.
+
+=== Elicitation
+
+Elicitation asks the client to get a structured input from its *user* - a missing parameter, a confirmation. The
+requested schema must be a flat object of primitives, which `JsonSchema` builds:
+
+[source,java]
+----
+session.elicit(new ElicitRequestParameters(
+        "Which environment should I deploy to?",
+        JsonSchema.object("deployment", Map.of(
+                "environment", JsonSchema.enumeration("Target environment.", List.of("dev", "staging", "prod")),
+                "confirm", JsonSchema.bool("Really deploy?")), List.of("environment", "confirm"))))
+    .thenApply(response -> {
+        if (response.action() != ElicitResponse.Action.accept) {
+            return ToolResponse.error("deployment cancelled by the user");
+        }
+        return deploy(String.valueOf(response.content().get("environment")));
+    });
+----
+
+Always check `action()`: the user can `accept`, `decline` or `cancel`, and `content` is only set on `accept`.
+
+=== Roots
+
+`listRoots()` returns the filesystem locations the client gives access to - typically the open workspaces - which is
+how a tool stays inside what the user allowed:
+
+[source,java]
+----
+return session.listRoots().thenApply(roots -> roots.roots().stream()
+        .map(ListRootsResponse.Root::uri)
+        .filter(uri -> uri.startsWith("file://"))
+        .toList());
+----
+
+The client sends `notifications/roots/list_changed` when they change; there is nothing to invalidate since
+`listRoots()` always asks.

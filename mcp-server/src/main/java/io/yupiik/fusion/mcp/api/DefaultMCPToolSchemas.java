@@ -13,19 +13,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.yupiik.fusion.mcp.demo.test;
+package io.yupiik.fusion.mcp.api;
 
-import io.yupiik.fusion.framework.api.configuration.ConfigurationSource;
-import io.yupiik.fusion.framework.api.scope.DefaultScoped;
+import io.yupiik.fusion.framework.api.scope.ApplicationScoped;
 
-@DefaultScoped
-public class RandomPort implements ConfigurationSource {
-    @Override
-    public String get(final String key) {
-        return switch (key) {
-            case "fusion.http-server.port" -> "0";
-            case "fusion.http-server.host" -> "localhost";
-            default -> null;
-        };
-    }
-}
+/**
+ * Default {@link MCPToolSchemas} contribution: no override at all. Applications provide their own
+ * {@link ApplicationScoped} implementation to customize a tool {@code inputSchema}.
+ */
+@ApplicationScoped
+public class DefaultMCPToolSchemas implements MCPToolSchemas {}

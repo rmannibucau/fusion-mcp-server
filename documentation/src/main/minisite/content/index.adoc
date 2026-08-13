@@ -1,0 +1,82 @@
+= Fusion MCP Server
+:minisite-index: 100
+:minisite-index-title: Overview
+:minisite-index-description: What it is and why it exists.
+:minisite-index-icon: play
+:minisite-nav-next-label: MCP
+:minisite-nav-next-link: mcp/index.html
+
+[abstract]
+Fusion MCP Server exposes a https://yupiik.github.io/fusion/[Yupiik Fusion] application to any
+https://modelcontextprotocol.io[Model Context Protocol] client - Claude, an IDE agent, the MCP inspector - by
+reusing the Fusion JSON-RPC stack: a tool is a plain `@JsonRpc` method.
+
+== In one snippet
+
+[source,java]
+----
+@ApplicationScoped
+public class MyTools {
+    @MCPTool <1>
+    @JsonRpc(value = "my/tool", documentation = "Greets someone.") <2>
+    public MyResult greet(@JsonRpcParam(required = true, documentation = "Who to greet.") final String name) { <3>
+        return new MyResult("hello " + name);
+    }
+}
+----
+<1> Flags the JSON-RPC method as a MCP tool - the flag is stored in the bean metadata at build time.
+<2> The method name is the tool name and the documentation is what the model reads to decide to call it.
+<3> The signature becomes the tool `inputSchema`, the returned type its `outputSchema`.
+
+That is the whole integration: start the application and the tool is listed by `tools/list`, callable with
+`tools/call`, documented, schema validated and typed - see xref:mcp/tools.adoc[Tools].
+
+== Why it is designed this way
+
+MCP is JSON-RPC 2.0, and Fusion already generates a complete, reflectionless JSON-RPC stack at build time. So
+nothing is reinvented:
+
+[options="header",cols="2,3"]
+|===
+| Concern | Where it comes from
+| MCP methods (`initialize`, `tools/call`, ...) | plain `@JsonRpc` methods, registered like the ones of the application
+| Parameter binding, validation, batching | the Fusion JSON-RPC stack, no reflection at runtime
+| Tool and prompt discovery | the OpenRPC document the Fusion annotation processor generates plus the `mcp.type` bean metadata
+| Tool invocation | `JsonRpcHandler`, i.e. the very same code path as a direct JSON-RPC call
+| Transport (sessions, SSE, headers) | this project, see xref:deployment/transport.adoc[Transport]
+|===
+
+Consequences you get for free: no reflection, GraalVM native friendly, tool schemas that cannot drift from the
+code, and the ability to expose the exact same methods as a plain JSON-RPC API.
+
+== What is covered
+
+[options="header",cols="2,1,3"]
+|===
+| Feature | Status | Notes
+| Tools | ✅ | xref:mcp/tools.adoc[From `@MCPTool`], with `inputSchema`, `outputSchema` and `structuredContent`.
+| Prompts | ✅ | xref:mcp/prompts.adoc[From `@MCPPrompt`], with argument completion.
+| Resources | ✅ | xref:mcp/resources.adoc[From `MCPResources`], subscriptions included.
+| Logging | ✅ | xref:mcp/server-to-client.adoc[Per session level filtering].
+| Notifications | ✅ | `list_changed`, `resources/updated`, `progress`.
+| Sampling, elicitation, roots | ✅ | xref:mcp/server-to-client.adoc[Server to client requests] over the SSE channel.
+| Streamable HTTP transport | ✅ | xref:deployment/transport.adoc[Sessions, SSE, `DELETE`, protocol negotiation].
+| HTTP+SSE transport (`2024-11-05`) | ❌ | Superseded by the streamable HTTP one.
+|===
+
+== Where to go next
+
+* xref:deployment/setup.adoc[Setup]: add it to your application and run it,
+* xref:deployment/clients.adoc[Connect a client]: Claude, the MCP inspector, `curl`,
+* xref:mcp/tools.adoc[Tools], xref:mcp/prompts.adoc[Prompts], xref:mcp/resources.adoc[Resources]: expose your features,
+* xref:internals/design.adoc[Design]: how the pieces fit, for contributors and for the curious.
+
+== Modules
+
+[options="header",cols="1,3"]
+|===
+| Module | Description
+| `fusion-mcp-server-impl` | The MCP implementation: transport, protocol, wire model and the `MCPClient` test helper.
+| `fusion-mcp-server-demo` | A runnable sample exposing tools, a prompt, resources, completions and a sampling call - see xref:internals/demo.adoc[Demo].
+| `fusion-mcp-server-documentation` | This site.
+|===

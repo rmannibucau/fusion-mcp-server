@@ -1,0 +1,107 @@
+= Demo
+:minisite-nav-prev-label: Testing
+:minisite-nav-prev-link: testing.html
+:minisite-nav-next-label: Contributing
+:minisite-nav-next-link: contributing.html
+
+The `demo` module is a complete MCP server, small enough to be read in one sitting, exercising every extension point.
+
+[source,bash]
+----
+mvn package -pl demo exec:exec
+----
+
+Then register `http://localhost:8080/mcp` in a client - see xref:../deployment/clients.adoc[Clients].
+
+The tools and the prompt it exposes - names, descriptions, parameters and schemas - are listed in the
+xref:#demo-reference[reference] at the end of this page, generated from the module itself.
+
+Source: `demo/src/main/java/io/yupiik/fusion/mcp/demo/` - about 200 lines in three classes:
+
+[options="header",cols="1,3"]
+|===
+| Class | Extension point
+| `DemoTools` | the `@MCPTool` methods and the `@MCPPrompt` one, from the minimal case to sampling, elicitation and roots.
+| `DemoResources` | `MCPResources`: a static resource (`demo://greeting`) and a template (`demo://echo/{message}`), neither being a JSON-RPC method so they are not in the generated reference.
+| `DemoCompletions` | `MCPCompletions`: suggesting values for the `code` argument of `demo/prompt`.
+|===
+
+== A guided session
+
+[source,bash]
+----
+MCP=http://localhost:8080/mcp
+SID=$(curl -si -X POST $MCP -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+        "protocolVersion":"2025-06-18","capabilities":{"sampling":{}},
+        "clientInfo":{"name":"curl","version":"1"}}}' \
+  | grep -i mcp-session-id | tr -d '\r' | cut -d' ' -f2)
+post() { curl -s -X POST $MCP -H 'content-type: application/json' -H "mcp-session-id: $SID" -d "$1"; }
+
+post '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+# a tool, with its structured result
+post '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"demo/greet","arguments":{"name":"fusion","times":3}}}'
+# {"result":{"content":[{"text":"{\"something\":\"hello fusion!!!\"}","type":"text"}],
+#            "isError":false,"structuredContent":{"something":"hello fusion!!!"}}}
+
+# a failure: readable by the model, not a protocol error
+post '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"demo/greet","arguments":{"name":" "}}}'
+# {"result":{"content":[{"text":"name should not be blank","type":"text"}],"isError":true, ...}}
+
+# a prompt and the completion of its argument
+post '{"jsonrpc":"2.0","id":4,"method":"prompts/get","params":{"name":"demo/prompt","arguments":{"code":"1234"}}}'
+post '{"jsonrpc":"2.0","id":5,"method":"completion/complete","params":{
+        "ref":{"type":"ref/prompt","name":"demo/prompt"},"argument":{"name":"code","value":"f"}}}'
+# {"result":{"completion":{"hasMore":false,"total":1,"values":["fusion"]}}}
+
+# a templated resource
+post '{"jsonrpc":"2.0","id":6,"method":"resources/read","params":{"uri":"demo://echo/hello"}}'
+----
+
+== Watching the server talk back
+
+Open the stream in one terminal:
+
+[source,bash]
+----
+curl -N $MCP -H 'accept: text/event-stream' -H "mcp-session-id: $SID"
+----
+
+and call the logging tool in another:
+
+[source,bash]
+----
+post '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"demo/log","arguments":{"message":"hello"}}}'
+----
+
+The stream shows the record:
+
+[source,text]
+----
+id: 1
+event: message
+data: {"jsonrpc":"2.0","method":"notifications/message","params":{"data":"hello","level":"info","logger":"demo"}}
+----
+
+`demo/ask` goes one step further: it sends a `sampling/createMessage` request on that stream and waits for the client
+to post the answer back - the full round trip is scripted in `DemoTest#sampling`, see xref:testing.adoc[Testing].
+
+== Native image
+
+[source,bash]
+----
+mvn package arthur:native-image -pl demo
+./demo/target/fusion-mcp-server-demo.graal.bin
+----
+
+No configuration is needed beyond what Fusion generates: no reflection, no dynamic proxy, and the OpenRPC document
+the tool descriptors come from is registered as a resource by the processor.
+
+[#demo-reference]
+== Reference
+
+Generated from `demo/target/classes/META-INF/fusion/jsonrpc/openrpc.json`, i.e. from the signatures themselves - it
+is the same document the server builds its tool descriptors from.
+
+include::{partialsdir}/generated/openrpc.demo.adoc[leveloffset=+1]

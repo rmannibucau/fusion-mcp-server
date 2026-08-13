@@ -1,0 +1,100 @@
+= Contributing
+:minisite-nav-prev-label: Demo
+:minisite-nav-prev-link: demo.html
+
+Contributions are welcome: https://github.com/yupiik/fusion-mcp-server/issues[issues],
+https://github.com/yupiik/fusion-mcp-server/discussions[discussions] and pull requests.
+
+== Build
+
+Pre-requisites: Java >= 25 and Apache Maven >= 4.0.0-rc1 (`.sdkmanrc` pins both).
+
+[source,bash]
+----
+mvn clean install          # everything, tests included
+mvn clean install -pl mcp-server -am
+mvn test -pl mcp-server -Dtest=MCPTransportTest
+----
+
+IMPORTANT: the build currently needs Yupiik Fusion `1.0.38-SNAPSHOT` installed locally - the release fixing the
+OpenRPC result schema of asynchronous methods - so clone https://github.com/yupiik/fusion[Fusion] and run
+`mvn clean install -T1C` in it until `1.0.38` is out.
+
+== Repository layout
+
+[options="header",cols="1,3"]
+|===
+| Path | Content
+| `mcp-server/` | the implementation: `protocol` (transport, sessions, SSE), `service` (descriptors, OpenRPC), `api` (what applications use), `model` (the wire model), `client` (`MCPClient`).
+| `demo/` | a runnable server exercising every feature, and the end to end tests.
+| `documentation/` | this site, an AsciiDoc minisite built with the Yupiik tools Maven plugin.
+|===
+
+== Conventions
+
+* every `.java`, `.xml`, `.properties` and `.yaml` file starts with the Apache-2.0 Yupiik header, checked at the
+`validate` phase - run `mvn license:format` to add it,
+* ASCII only, in the sources and in the documentation,
+* braces on every control flow block, `final var` for locals and `final` parameters,
+* public API - anything in `api`, `model`, `protocol` and `client` - is documented with javadoc: it is what shows up
+in an IDE,
+* no reflection: the project lives on the generated Fusion beans and codecs, which is what keeps it native friendly.
+
+== Tests
+
+JUnit 5 with `fusion-testing`, one concern per class:
+
+[options="header",cols="1,3"]
+|===
+| Test | Scope
+| `MCPJSONRPCProtocolTest` | the MCP methods with no application tool, so the minimal capabilities.
+| `MCPTransportTest` | sessions, headers, batches, `DELETE`, SSE, replay, stateless clients.
+| `MCPStrictSessionTest` | the same transport with `fusion.mcp.requireSession=true`.
+| `SseBusTest` | the event stream: framing, backpressure, greeting, replay window, keep-alive.
+| `MCPSessionTest` | one session in isolation: logging filter, server requests, correlation, timeouts, expiration.
+| `MCPSessionsTest` | the registry: creation, lookup, eviction, how a call is bound to its session.
+| `OpenRpcServiceTest` | `$ref` inlining, including the recursive models which must not loop.
+| `ModelTest` | the wire format of the model - a rename must break here, a client parses it.
+| `MCPClientTest` | the shipped client itself.
+| `DemoTest` | a real server end to end, including the sampling, elicitation and roots round trips.
+| `DescriptorsTest` | that only annotated methods are exposed and that all the OpenRPC documents are merged.
+|===
+
+A `StubRequest` test double covers what only needs headers and attributes, so the session level tests need no HTTP
+server.
+
+Prefer `assertJsonEquals` over string matching: the expected JSON reads like the wire, and a diff points at what a
+client would actually see. Use `MCPClient` rather than raw HTTP - see xref:testing.adoc[Testing].
+
+When a change alters what a client sees - a schema, a capability, a status code - update the corresponding
+expectation *and* the documentation page describing it in the same commit.
+
+== Documentation
+
+The site lives in `documentation/src/main/minisite/content`, one page per topic, ordered with the
+`:minisite-index:` attribute and chained with `:minisite-nav-prev-*:`/`:minisite-nav-next-*:`.
+
+[source,bash]
+----
+mvn -pl documentation yupiik-tools:serve-minisite -e   # live preview on http://localhost:4200
+mvn clean package -pl documentation -Prender-site      # render to documentation/target
+mvn clean package -pl documentation -Pgh-pages         # publish to the gh-pages branch
+----
+
+Anything under `content/_partials/generated/` is *generated*, never edit it by hand:
+`documentation.mcp.adoc` is produced from the `MCPConfiguration` metadata by the
+`ConfigurationDocumentationGenerator` pre-action, so the configuration reference cannot drift from the code. A plain
+`mvn install` refreshes it - the default profile runs the generation without rendering the site.
+
+Prefer that mechanism over writing a table by hand whenever the information exists in the code.
+
+== Release
+
+[source,bash]
+----
+mvn release:prepare release:perform
+----
+
+The `release` profile signs the artifacts, attaches the sources and javadoc and publishes to Maven Central through
+the Sonatype central plugin. Before releasing, switch `fusion.version` to a released Fusion version - a SNAPSHOT
+dependency cannot be published.

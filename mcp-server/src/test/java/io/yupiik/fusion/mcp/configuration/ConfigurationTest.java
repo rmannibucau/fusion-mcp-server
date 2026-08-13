@@ -13,19 +13,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.yupiik.fusion.mcp.test;
+package io.yupiik.fusion.mcp.configuration;
 
-import io.yupiik.fusion.framework.api.configuration.ConfigurationSource;
-import io.yupiik.fusion.framework.api.scope.DefaultScoped;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@DefaultScoped
-public class RandomPort implements ConfigurationSource {
-    @Override
-    public String get(final String key) {
-        return switch (key) {
-            case "fusion.http-server.port" -> "0";
-            case "fusion.http-server.host" -> "localhost";
-            default -> null;
-        };
+import org.junit.jupiter.api.Test;
+
+class ConfigurationTest {
+    @Test
+    void aNegativeCacheTtlIsRejected() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new MCPConfiguration("n", "t", "v", "i", 0, 30, false, -1L, "private", "", true));
+    }
+
+    @Test
+    void aZeroCacheTtlIsFine() {
+        assertEquals(0L, new MCPConfiguration("n", "t", "v", "i", 0, 30, false, 0L, "private", "", true).cacheTtlMs());
     }
 }

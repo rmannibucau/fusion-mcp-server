@@ -15,13 +15,36 @@
  */
 package io.yupiik.fusion.mcp.api;
 
-import io.yupiik.fusion.framework.build.api.metadata.BeanMetadataAlias;
-
-import java.lang.annotation.Retention;
-
+import static java.lang.annotation.ElementType.METHOD;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
+import io.yupiik.fusion.framework.build.api.metadata.BeanMetadataAlias;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
+/**
+ * Exposes a JSON-RPC method as a MCP prompt, i.e. as a reusable message template the user can pick:
+ * <pre>{@code
+ * @ApplicationScoped
+ * public class MyPrompts {
+ *     @MCPPrompt
+ *     @JsonRpc(value = "my/prompt", documentation = "Reviews a code snippet.")
+ *     public PromptResponse review(@JsonRpcParam(required = true) final String code) {
+ *         return new PromptResponse(null, "Code review", List.of(new PromptResponse.Message(
+ *                 Role.user, Content.text("Review this code: " + code))), null);
+ *     }
+ * }
+ * }</pre>
+ * The method must return a {@link io.yupiik.fusion.mcp.model.PromptResponse} - or a {@code CompletionStage} of it -
+ * and, MCP prompt arguments being always strings, only take {@code String} parameters.
+ * <p>
+ * IMPORTANT: this is a marker, the flag is stored in the bean metadata ({@code mcp.type=prompt}) at build time so it
+ * does not need to be kept at runtime.
+ *
+ * @see MCPTool for the tool counterpart.
+ * @see MCPCompletions to suggest values for the arguments.
+ */
+@Target(METHOD)
 @Retention(SOURCE)
 @BeanMetadataAlias(name = "mcp.type", value = "prompt")
-public @interface MCPPrompt {
-}
+public @interface MCPPrompt {}

@@ -15,21 +15,28 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
-
 import java.util.List;
 
+/**
+ * {@code roots/list} result, i.e. the filesystem locations the client gives access to.
+ */
 @JsonModel
 public record ListRootsResponse(
-        @JsonProperty("_meta") Metadata metadata,
-        List<Root> roots
-) {
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
+        @Property(documentation = "The locations the client gives access to.")
+        List<Root> roots) {
     @JsonModel
     public record Root(
             @JsonProperty("_meta") Metadata metadata,
+
+            @Property(documentation = "Human oriented name of the root.")
             String name,
-            String uri
-    ) {
-    }
+
+            @Property(documentation = "Uri of the root, generally a file:// one.")
+            String uri) {}
 }

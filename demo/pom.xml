@@ -16,134 +16,131 @@
     under the License.
 
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>io.yupiik.fusion.mcp</groupId>
-        <artifactId>fusion-mcp-server-parent</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
-    </parent>
+  <parent>
+    <groupId>io.yupiik.fusion.mcp</groupId>
+    <artifactId>fusion-mcp-server-parent</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
 
-    <artifactId>fusion-mcp-server-demo</artifactId>
-    <packaging>jar</packaging>
-    <name>Fusion MCP Server :: Demo</name>
-    <description>Demo.</description>
+  <artifactId>fusion-mcp-server-demo</artifactId>
+  <packaging>jar</packaging>
+  <name>Fusion MCP Server :: Demo</name>
+  <description>Demo.</description>
 
-    <properties>
-        <arthur.version>1.0.9</arthur.version>
-        <graalvm.version>21.0.2-graalce</graalvm.version>
-        <image.base>ossyupiik/java:21.0.8@sha256:f24ddb2bd8bf94e4f7f7fafb7a668689ba557dd28cc7a2c63ecd1bf9710cce90</image.base>
-        <image.registry>ossyupiik</image.registry>
-        <image.name>${image.registry}/fusion-mcp-server/${project.artifactId}:${project.version}</image.name>
-        <image.workdir>/opt/yupiik/${project.artifactId}</image.workdir>
-    </properties>
+  <properties>
+    <arthur.version>1.0.9</arthur.version>
+    <graalvm.version>25.0.1</graalvm.version>
+    <image.registry>ossyupiik</image.registry>
+    <image.name>${image.registry}/fusion-mcp-server/${project.artifactId}:${project.version}</image.name>
+  </properties>
 
-    <dependencies>
-        <dependency>
-            <groupId>io.yupiik.fusion</groupId>
-            <artifactId>fusion-build-api</artifactId>
-            <version>${fusion.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.yupiik.fusion</groupId>
-            <artifactId>fusion-processor</artifactId>
-            <version>${fusion.version}</version>
-            <scope>provided</scope>
-        </dependency>
+  <dependencies>
+    <dependency>
+      <groupId>io.yupiik.fusion</groupId>
+      <artifactId>fusion-build-api</artifactId>
+      <version>${fusion.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.yupiik.fusion</groupId>
+      <artifactId>fusion-processor</artifactId>
+      <version>${fusion.version}</version>
+      <scope>provided</scope>
+    </dependency>
 
-        <dependency>
-            <groupId>io.yupiik.fusion</groupId>
-            <artifactId>fusion-api</artifactId>
-            <version>${fusion.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.yupiik.fusion.mcp</groupId>
-            <artifactId>fusion-mcp-server-impl</artifactId>
-            <version>${project.version}</version>
-        </dependency>
+    <dependency>
+      <groupId>io.yupiik.fusion</groupId>
+      <artifactId>fusion-api</artifactId>
+      <version>${fusion.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.yupiik.fusion.mcp</groupId>
+      <artifactId>fusion-mcp-server-impl</artifactId>
+      <version>${project.version}</version>
+    </dependency>
 
-        <dependency>
-            <groupId>io.yupiik.logging</groupId>
-            <artifactId>yupiik-logging-jul</artifactId>
-            <version>${yupiik-logging.version}</version>
-            <scope>runtime</scope>
-        </dependency>
+    <dependency>
+      <groupId>io.yupiik.logging</groupId>
+      <artifactId>yupiik-logging-jul</artifactId>
+      <version>${yupiik-logging.version}</version>
+      <scope>runtime</scope>
+    </dependency>
 
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>${junit-jupiter.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.yupiik.fusion</groupId>
-            <artifactId>fusion-testing</artifactId>
-            <version>${fusion.version}</version>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.yupiik.fusion</groupId>
+      <artifactId>fusion-testing</artifactId>
+      <version>${fusion.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <configuration>
-                    <executable>java</executable>
-                    <arguments>
-                        <argument>-Djava.util.logging.manager=io.yupiik.logging.jul.YupiikLogManager</argument>
-                        <argument>-classpath</argument>
-                        <classpath/>
-                        <argument>io.yupiik.fusion.framework.api.main.Launcher</argument>
-                    </arguments>
-                </configuration>
-            </plugin>
-            <plugin>
-                <!--
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <configuration>
+          <executable>java</executable>
+          <arguments>
+            <argument>-Djava.util.logging.manager=io.yupiik.logging.jul.YupiikLogManager</argument>
+            <argument>-classpath</argument>
+            <classpath />
+            <argument>io.yupiik.fusion.framework.api.main.Launcher</argument>
+          </arguments>
+        </configuration>
+      </plugin>
+      <plugin>
+        <!--
                     mvn arthur:native-image for binaries
                     mvn arthur:native-image arthur:docker for build docker image with binaries
                 -->
-                <groupId>org.apache.geronimo.arthur</groupId>
-                <artifactId>arthur-maven-plugin</artifactId>
-                <version>${arthur.version}</version>
-                <configuration>
-                    <main>io.yupiik.fusion.framework.api.main.Launcher</main>
-                    <usePackagedArtifact>true</usePackagedArtifact>
-                    <graalVersion>25.0.1</graalVersion>
-                    <graalDownloadUrl>https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-25.0.1/graalvm-community-jdk-25.0.1_linux-x64_bin.tar.gz</graalDownloadUrl>
-                    <buildStaticImage>false</buildStaticImage>
-                    <useLDD>true</useLDD>
-                    <includeNatives>false</includeNatives>
-                    <fallbackMode>no</fallbackMode>
-                    <enableAllSecurityServices>false</enableAllSecurityServices>
-                    <scanningExcludedArtifacts>*</scanningExcludedArtifacts>
-                    <customOptions>
-                        <customOption>-Djava.util.logging.manager=io.yupiik.logging.jul.YupiikLogManager</customOption>
-                        <customOption>-Djava.net.preferIPv4Stack=true</customOption>
-                        <customOption>-Duser.language=en</customOption>
-                        <customOption>-Duser.country=US</customOption>
-                        <customOption>-Dfile.encoding=UTF-8</customOption>
-                        <customOption>-H:+UnlockExperimentalVMOptions</customOption>
-                        <customOption>--initialize-at-build-time=io.yupiik.logging.jul.YupiikLogManager</customOption>
-                    </customOptions>
+        <groupId>org.apache.geronimo.arthur</groupId>
+        <artifactId>arthur-maven-plugin</artifactId>
+        <version>${arthur.version}</version>
+        <configuration>
+          <main>io.yupiik.fusion.framework.api.main.Launcher</main>
+          <usePackagedArtifact>true</usePackagedArtifact>
+          <graalVersion>${graalvm.version}</graalVersion>
+          <graalDownloadUrl>https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-${graalvm.version}/graalvm-community-jdk-${graalvm.version}_linux-x64_bin.tar.gz</graalDownloadUrl>
+          <buildStaticImage>false</buildStaticImage>
+          <useLDD>true</useLDD>
+          <includeNatives>false</includeNatives>
+          <fallbackMode>no</fallbackMode>
+          <enableAllSecurityServices>false</enableAllSecurityServices>
+          <scanningExcludedArtifacts>*</scanningExcludedArtifacts>
+          <customOptions>
+            <customOption>-Djava.util.logging.manager=io.yupiik.logging.jul.YupiikLogManager</customOption>
+            <customOption>-Djava.net.preferIPv4Stack=true</customOption>
+            <customOption>-Duser.language=en</customOption>
+            <customOption>-Duser.country=US</customOption>
+            <customOption>-Dfile.encoding=UTF-8</customOption>
+            <customOption>-H:+UnlockExperimentalVMOptions</customOption>
+            <customOption>--initialize-at-build-time=io.yupiik.logging.jul.YupiikLogManager</customOption>
+          </customOptions>
 
-                    <!-- image configuration -->
-                    <to>${image.name}</to>
-                    <creationTimestamp>-1</creationTimestamp>
-                    <labels>
-                        <org.opencontainers.image.created>${maven.build.timestamp}</org.opencontainers.image.created>
-                        <org.opencontainers.image.authors>Yupiik</org.opencontainers.image.authors>
-                        <org.opencontainers.image.vendor>Yupiik</org.opencontainers.image.vendor>
-                        <org.opencontainers.image.title>${project.artifactId}</org.opencontainers.image.title>
-                        <org.opencontainers.image.description>${project.description}</org.opencontainers.image.description>
-                        <org.opencontainers.image.version>${project.version}</org.opencontainers.image.version>
-                    </labels>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+          <!-- image configuration -->
+          <to>${image.name}</to>
+          <creationTimestamp>-1</creationTimestamp>
+          <labels>
+            <org.opencontainers.image.created>${maven.build.timestamp}</org.opencontainers.image.created>
+            <org.opencontainers.image.authors>Yupiik</org.opencontainers.image.authors>
+            <org.opencontainers.image.vendor>Yupiik</org.opencontainers.image.vendor>
+            <org.opencontainers.image.title>${project.artifactId}</org.opencontainers.image.title>
+            <org.opencontainers.image.description>${project.description}</org.opencontainers.image.description>
+            <org.opencontainers.image.version>${project.version}</org.opencontainers.image.version>
+          </labels>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>

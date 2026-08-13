@@ -15,8 +15,10 @@
  */
 package io.yupiik.fusion.mcp.demo.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
 @JsonModel
-public record DemoResponse(String something) {
-}
+public record DemoResponse(
+        @Property(documentation = "What the tool has to say, a plain sentence.")
+        String something) {}

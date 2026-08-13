@@ -15,52 +15,72 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
-
 import java.util.Map;
 
+/**
+ * {@code initialize} result: the negotiated protocol version and what the server can do.
+ */
 @JsonModel
 public record InitializeResponse(
+        @Property(documentation = "The negotiated protocol version.")
         String protocolVersion,
+
+        @Property(documentation = "What this server can do.")
         Capabilities capabilities,
+
+        @Property(documentation = "Which server is answering.")
         ServerInfo serverInfo,
-        String instructions
-) {
+
+        @Property(documentation = "How the model should use this server.")
+        String instructions) {
     @JsonModel
     public record Capabilities(
+            @Property(documentation = "Set when the server can send log records.")
             Map<String, Object> logging,
+
+            @Property(documentation = "Set when the server exposes prompts.")
             Prompts prompts,
+
+            @Property(documentation = "Set when the server exposes resources.")
             Resources resources,
+
+            @Property(documentation = "Set when the server exposes tools.")
             Tools tools,
+
+            @Property(documentation = "Set when the server can suggest argument values.")
             Map<String, Object> completions,
-            Map<String, Object> experimental
-    ) {
-    }
+
+            @Property(documentation = "Non standard capabilities, keyed by name.")
+            Map<String, Object> experimental) {}
 
     @JsonModel
     public record Prompts(
-            boolean listChanged
-    ) {
-    }
+            @Property(documentation = "Set when the server notifies the client the prompt list changed.")
+            boolean listChanged) {}
 
     @JsonModel
     public record Resources(
+            @Property(documentation = "Set when the client can subscribe to the changes of a single resource.")
             boolean subscribe,
-            boolean listChanged
-    ) {
-    }
+
+            @Property(documentation = "Set when the server notifies the client the resource list changed.")
+            boolean listChanged) {}
 
     @JsonModel
     public record Tools(
-            boolean listChanged
-    ) {
-    }
+            @Property(documentation = "Set when the server notifies the client the tool list changed.")
+            boolean listChanged) {}
 
     @JsonModel
     public record ServerInfo(
+            @Property(documentation = "Programmatic name of the server.")
             String name,
+
+            @Property(documentation = "Human oriented name of the server.")
             String title,
-            String version
-    ) {
-    }
+
+            @Property(documentation = "Version of the server.")
+            String version) {}
 }

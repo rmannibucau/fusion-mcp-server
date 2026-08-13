@@ -15,21 +15,39 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
-
 import java.util.Map;
 
-// note: this is not complete, more for demo purposes
+/**
+ * The capabilities the client advertises in {@code initialize}.
+ * <p>
+ * They gate the server to client requests: sampling ({@code sampling/createMessage}), elicitation
+ * ({@code elicitation/create}) and roots ({@code roots/list}) are only usable when the client declared them.
+ *
+ * @param roots        set when the client exposes filesystem roots.
+ * @param sampling     set when the client can run a LLM completion for the server.
+ * @param elicitation  set when the client can ask its user for a structured input.
+ * @param experimental non standard capabilities.
+ */
 @JsonModel
 public record Capabilities(
+        @Property(documentation = "Set when the client exposes filesystem roots.")
         Roots roots,
+
+        @Property(documentation = "Set when the client can run a LLM completion for the server.")
         Map<String, Object> sampling,
+
+        @Property(documentation = "Set when the client can ask its user for a structured input.")
         Map<String, Object> elicitation,
-        Map<String, Object> experimental
-) {
+
+        @Property(documentation = "Non standard capabilities, keyed by name.")
+        Map<String, Object> experimental,
+
+        @Property(documentation = "Optional MCP extensions the client supports, keyed by extension identifier.")
+        Map<String, Object> extensions) {
     @JsonModel
     public record Roots(
-            boolean listChanged
-    ) {
-    }
+            @Property(documentation = "Set when the client notifies the server the list changed.")
+            boolean listChanged) {}
 }

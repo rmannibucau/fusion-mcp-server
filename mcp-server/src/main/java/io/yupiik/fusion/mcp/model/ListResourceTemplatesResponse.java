@@ -15,24 +15,34 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
-
 import java.util.List;
 
+/**
+ * {@code resources/templates/list} result.
+ * <p>
+ * The {@code resultType}, {@code ttlMs}, {@code cacheScope} and {@code _meta} fields belong to the
+ * {@code 2026-07-28} protocol version: they stay {@code null} - and are omitted on the wire - for the legacy
+ * versions.
+ */
 @JsonModel
 public record ListResourceTemplatesResponse(
-        List<ResourceTemplate> resources,
-        String nextCursor
-) {
-    @JsonModel
-    public record ResourceTemplate(
-            @JsonProperty("_meta") Metadata metadata,
-            Annotations annotations,
-            String description,
-            String mimeType,
-            String name,
-            String title,
-            String uriTemplate
-    ) {}
-}
+        @Property(documentation = "The available parameterized resources.")
+        List<ResourceTemplate> resourceTemplates,
+
+        @Property(documentation = "Cursor to pass to the next call, absent when everything was returned.")
+        String nextCursor,
+
+        @Property(documentation = "The type of this result, see the {@code 2026-07-28} specification.")
+        ResultType resultType,
+
+        @Property(documentation = "How long, in milliseconds, the client may cache this result.")
+        Long ttlMs,
+
+        @Property(documentation = "The scope the client may share this cache entry at.")
+        String cacheScope,
+
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata) {}

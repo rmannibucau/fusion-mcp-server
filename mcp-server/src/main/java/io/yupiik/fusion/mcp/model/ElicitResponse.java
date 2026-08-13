@@ -15,19 +15,28 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
-
 import java.util.Map;
 
+/**
+ * {@code elicitation/create} result, {@code content} is only set when {@code action == accept}.
+ */
 @JsonModel
 public record ElicitResponse(
-        @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
+        @Property(documentation = "What the user did: accept, decline or cancel.")
         Action action,
-        Map<String, Object> content
-) {
+
+        @Property(documentation = "The answer, only set when the action is accept.")
+        Map<String, Object> content) {
     @JsonModel
     public enum Action {
-        accept, cancel, decline
+        accept,
+        cancel,
+        decline
     }
 }

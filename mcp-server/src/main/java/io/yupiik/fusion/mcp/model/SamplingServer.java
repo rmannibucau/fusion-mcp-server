@@ -17,7 +17,12 @@ package io.yupiik.fusion.mcp.model;
 
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * Which MCP servers context the client should include in a sampling request.
+ */
 @JsonModel
 public enum SamplingServer {
-    allServers, none, thisServer
+    allServers,
+    none,
+    thisServer
 }

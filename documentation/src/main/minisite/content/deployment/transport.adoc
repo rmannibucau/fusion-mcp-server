@@ -1,0 +1,123 @@
+= Transport
+:minisite-nav-prev-label: Configuration
+:minisite-nav-prev-link: configuration.html
+:minisite-nav-next-label: Clients
+:minisite-nav-next-link: clients.html
+
+The server implements the MCP *streamable HTTP* transport on a single path, `/mcp`.
+
+== Routes
+
+[options="header",cols="1,3"]
+|===
+| Route | Behavior
+| `POST /mcp` | JSON-RPC requests, notifications, responses to server requests, and batches of those. A request answers `200` with the JSON-RPC response; a notification or a response answers `202` with an empty body.
+| `GET /mcp` | opens the `text/event-stream` channel of the session. A comment (`: ping`) is sent immediately so the client knows the stream is live, then one `event: message` per server message.
+| `DELETE /mcp` | terminates the session: `204` when it was live, `404` when it was already gone, `400` without the session header.
+|===
+
+== Headers
+
+[options="header",cols="1,3"]
+|===
+| Header | Behavior
+| `Mcp-Session-Id` | returned by `initialize`, the client sends it back on every subsequent request. An unknown or expired value answers `404`, which is the signal for the client to initialize again.
+| `MCP-Protocol-Version` | validated when present, an unsupported value answers `400`.
+| `Last-Event-ID` | on `GET`, replays the messages published after that event. The last 128 messages are kept per session.
+|===
+
+== Lifecycle
+
+[source,bash]
+----
+# 1. initialize, the response carries the session id
+curl -si -X POST localhost:8080/mcp -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+        "protocolVersion":"2025-06-18","capabilities":{},
+        "clientInfo":{"name":"curl","version":"1"}}}' | grep -i mcp-session-id
+# mcp-session-id: 62e5d399-e836-410b-a696-f3d524b26f05
+
+# 2. tell the server the client is ready -> 202
+curl -s -X POST localhost:8080/mcp -H 'content-type: application/json' \
+  -H "mcp-session-id: $SID" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+# 3. use it
+curl -s -X POST localhost:8080/mcp -H 'content-type: application/json' \
+  -H "mcp-session-id: $SID" -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+
+# 4. and close it -> 204
+curl -s -X DELETE localhost:8080/mcp -H "mcp-session-id: $SID"
+----
+
+A session holds the negotiated protocol version, the client capabilities and info, the logging level, the resource
+subscriptions, the pending server requests and the SSE queue. It expires after `fusion.mcp.sessionTimeout` seconds
+of inactivity (30 minutes by default, `0` disables it) and expired sessions are evicted when a new one is created -
+no background thread, which keeps the native image simple.
+
+== Protocol negotiation
+
+Supported versions: `2025-06-18` (the default) and `2025-03-26`. As the specification requires, `initialize` never
+fails on an unknown version: it answers the latest version the server supports and lets the client decide whether it
+can proceed.
+
+[source,text]
+----
+client asks 2025-03-26 -> server answers 2025-03-26   (supported, echoed)
+client asks 2024-11-05 -> server answers 2025-06-18   (unsupported, latest offered)
+----
+
+The older HTTP+SSE transport of `2024-11-05` - two endpoints, one for posting and one for streaming - is not
+implemented; it was superseded by the streamable HTTP one.
+
+== Stateless clients
+
+A client which ignores `Mcp-Session-Id` keeps working: it gets a fresh, unregistered session per request. Everything
+stateless works - `tools/list`, `tools/call`, `prompts/get`, `resources/read` - while everything stateful is a no-op:
+no SSE channel, no logging level, no subscription, no sampling.
+
+Set `fusion.mcp.requireSession=true` to refuse those clients with a `400` instead, which is the stricter reading of
+the specification.
+
+== The SSE channel
+
+One stream per session; opening a second one completes the first. Frames are standard:
+
+[source,text]
+----
+: ping
+
+id: 1
+event: message
+data: {"jsonrpc":"2.0","method":"notifications/message","params":{"level":"info","logger":"demo","data":"hello"}}
+
+id: 2
+event: message
+data: {"jsonrpc":"2.0","id":1,"method":"sampling/createMessage","params":{...}}
+----
+
+The `id` is what a client sends back in `Last-Event-ID` to resume. Messages published while no stream is open are
+buffered, so a tool can send a request before the client connects.
+
+== Relationship with the Fusion JSON-RPC endpoint
+
+The MCP endpoint is registered with `@Order(900)`, i.e. before the standard Fusion JSON-RPC endpoint (`1000`), so it
+takes precedence on the shared path and then delegates the JSON-RPC work to the same `JsonRpcHandler`. Only the
+transport concerns are handled here - session, headers, `202`, SSE, and the routing of client responses.
+
+`fusion.jsonrpc.binding` defaults to `/mcp` for that reason. Set it to `/jsonrpc` to *also* expose the very same
+methods as a plain JSON-RPC API:
+
+[source,bash]
+----
+java -Dfusion.jsonrpc.binding=/jsonrpc ... # MCP on /mcp, plain JSON-RPC on /jsonrpc
+----
+
+CAUTION: that plain endpoint exposes every `@JsonRpc` method, including the MCP protocol ones, and it is not
+protected by the `@MCPTool` allow list. Keep it internal.
+
+== Deployment notes
+
+* sessions are in memory: behind a load balancer, enable sticky routing on the `Mcp-Session-Id` header,
+* the SSE stream is a long lived response: configure the idle timeouts of the proxies accordingly (the server itself
+sets no timeout on it),
+* `POST` answers `application/json`; the server never upgrades a `POST` to a stream, which keeps proxies happy.

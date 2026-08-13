@@ -1,0 +1,77 @@
+= Prompts
+:minisite-nav-prev-label: Tools
+:minisite-nav-prev-link: tools.html
+:minisite-nav-next-label: Resources
+:minisite-nav-next-link: resources.html
+
+A prompt is a template the *user* picks - a slash command in an IDE, an entry in a menu - and not something the model
+calls on its own. Flag a JSON-RPC method with `@MCPPrompt`:
+
+[source,java]
+----
+@ApplicationScoped
+public class MyPrompts {
+    @MCPPrompt
+    @JsonRpc(value = "my/review", documentation = "Reviews a code snippet.")
+    public PromptResponse review(
+            @JsonRpcParam(required = true, documentation = "The code to review.") final String code,
+            @JsonRpcParam(documentation = "Language of the snippet.") final String language) {
+        return new PromptResponse(
+                null,
+                "Code review",
+                List.of(new PromptResponse.Message(
+                        Role.user,
+                        Content.text("Review this " + (language == null ? "code" : language) + ":\n" + code))));
+    }
+}
+----
+
+Two constraints, both coming from the specification:
+
+* the method must return a `PromptResponse` - or a `CompletionStage<PromptResponse>`,
+* prompt arguments are always strings, so only declare `String` parameters.
+
+`prompts/list` exposes the name, the description and the arguments - name, description and whether it is required -
+all derived from the signature exactly like for a tool. `prompts/get` invokes the method and returns the expanded
+messages.
+
+== Completing the arguments
+
+Implement `MCPCompletions` to suggest values while the user types an argument. Return `null` when the request is not
+for you: every implementation is visited, in bean priority order (`@Order`), until one answers.
+
+[source,java]
+----
+@ApplicationScoped
+public class LanguageCompletions implements MCPCompletions {
+    private static final List<String> LANGUAGES = List.of("java", "javascript", "python", "rust");
+
+    @Override
+    public CompleteResult.Completion complete(final CompletionRef ref, final CompletionArgument argument,
+                                              final CompletionContext context) {
+        if (!"ref/prompt".equals(ref.type()) || !"my/review".equals(ref.name()) || !"language".equals(argument.name())) {
+            return null;
+        }
+        return MCPCompletions.matching(LANGUAGES, argument.value());
+    }
+}
+----
+
+`MCPCompletions.matching(candidates, prefix)` filters on the prefix and truncates to the 100 values MCP allows,
+setting `hasMore` accordingly. Build the `Completion` yourself for anything smarter - a database lookup, a fuzzy
+match.
+
+`CompletionContext` carries the arguments already resolved, which is what dependent completions need:
+
+[source,java]
+----
+// suggest the cities of the country the user already picked
+final var country = context == null || context.arguments() == null ? null : context.arguments().get("country");
+return MCPCompletions.matching(cities(country), argument.value());
+----
+
+`ref.type()` is `ref/prompt` for a prompt argument and `ref/resource` for a
+xref:resources.adoc[resource template] variable - in the latter case `ref.uri()` holds the template.
+
+NOTE: the `completions` capability is only advertised when at least one `MCPCompletions` bean exists, so a client
+never offers an empty completion.

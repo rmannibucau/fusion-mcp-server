@@ -15,8 +15,16 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
+import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
 
-// used by several server -> client requests like roots/list for ex
-public record MetadataParameters(@JsonProperty("_meta") Metadata metadata) {
+/**
+ * Parameters of the requests/notifications only taking a {@code _meta} attribute - {@code roots/list} for example.
+ */
+@JsonModel
+public record MetadataParameters(
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata) {
+    public static final MetadataParameters EMPTY = new MetadataParameters(null);
 }

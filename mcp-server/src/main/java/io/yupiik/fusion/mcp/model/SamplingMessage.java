@@ -15,11 +15,15 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * A single message of a sampling conversation.
+ */
 @JsonModel
 public record SamplingMessage(
+        @Property(documentation = "Who the message comes from.")
         Role role,
-        Content content
-) {
-}
+
+        @Property(documentation = "The message content.") Content content) {}

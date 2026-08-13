@@ -1,25 +1,41 @@
 = Fusion MCP server
 
-image:https://img.shields.io/maven-central/v/io.yupiik.fusion/fusion-mcp-server?color=00b2ef&label=Last%20Release&logoColor=00b2ef&logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAACAAAAAqCAYAAADS4VmSAAAAAXNSR0IArs4c6QAABGdJREFUWEedmF2I3FQUx%2F9nZrYzq7ttMtuK32B90WpFEbtUW2T7UqqbjIgM%2BKQP%2BmAfBUEFP0H7oo%2BiIgg%2BqRUqk%2BwWRXTFj9UWoVIp7UN1H9QitTvJMtpOd3dydDI7k9zk3syd5C25557zO1%2F3I4S8z3xzJzp0MpweBDfioanf86iiPJPCOY7HwlzbzKUr1yQ4XgAgOZdhm4VRHcoLIHrft5ojCqMDiKF%2FGlQkcOfNgecjQowGcKS5ByX6NmUsDrXOe%2FFw9TvdVIwGEDdUNiawn%2F4NDR0%2BP4HKWCtPFPQBXP8EmO9UGonDEf0My7hLJwr6AHEDqjzryCSo9ACEtuM%2FYVevl3rneH8D2LoxptWWugBR2w2r8hGjMBxAaDt6BrbxRmZuHf81gJ%2FXLchsgEbzQRDN6SobyMWhmWdRq86roLMB4ooKVMWs4Q0Uuf4jYP4kfKfONKytxwdjR1vbsL5%2BXgdcDeD6J8G8U6vtukLJ2hDb8hdYxh2yKKgBsorJ9QJwYjMiMKzEZqRRkHKAhrcKwliPmC7ANrYN6A%2Bf2oTKtZelOW1%2FUUK93oml6RKYK%2BE7Yw01c1NyXhpggSto%2BZe0Qh%2FgMQBFFPC%2BlvykMY4Zasch0gBC4RUfx%2BzmDwYT5lem0Ql%2BTBkTWjW4HfbUqVhHvALgRRWgCDDXmkGw%2FpWWN%2BXLE9h%2FdW8z%2BtQzUETUIVkFWSjtw%2BzkQt%2BGCBD3pG2UUKcon43mCRBpbkZYhGXeF9UNj6PiX5Q5FgE4zUWAdmt5n2czEtLEP8Cu3huWeCxX6vVenHwadnWHtAsc7zcAN43iRA9gmAGNftZ05A8A18UBCQtcQstf06JmfhS16kdS7%2FsfHf9ZgA9p6Zs0xkjwngsHUNvyWeTNch0ofKxUpiIRNiO6BzXjp4Fow38OxK9HXZC8YDAfRK36dio1JaOCB0i%2BAiZBjvx1FcbKn8MyxWOZ670MxkviQuR4vwLYnnKG2QeRsfG9A9ssZYY%2Ba9BpXgRoPCVCWOwVoXvhFnDxtFLHsFOQTirS1rfDNpbSS3HD64Agv2JR8VZYm88MKcJ9AH8plWEEqJlFMQVq%2Bq8B3K8Y%2Fga2KY45XrfQ7s6Ea%2F9zBeo3RBud5IIJzPmmePJZ2QUOjuXKf6GzA0FpL8DvqjpJTIG7%2FCq48EIoTPQULOMdwXCyY%2BRU6eO4cDrCDCyzG92eGaUBWeE5%2FlsAH8yMBvMh1KrRqbgvrFhNIwDXOwfGNdJQOZ4PYMtIaWAso2b2LynJHxrHYZvTsQgwwfG7Px16T9f7bi0E3FQbDZ4ECu%2BF490lmuhDpWz%2FIiuJgmQzoiWAox1N1LoK2yyHn5zlJ2IA0dnf9dfArFq0ugeYK%2BOOSgAkfhBcWKYt1osCoC%2Fk%2BsfAvCszbbZJQwCC3bCnojNgXJsqAkmLzsoBIDgqBRkAuP5ZMN88EGqfK6N%2B22omvS5AX8nCUgUtI74IfQ%2Fb3DP8cqqiGBVAoSc%2FQFiIG%2F8K825W%2F%2Bv4D2sg4qMfRFPFAAAAAElFTkSuQmCC[float="right"]
+image:https://img.shields.io/maven-central/v/io.yupiik.fusion.mcp/fusion-mcp-server-impl?color=00b2ef&label=Last%20Release&logoColor=00b2ef&logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAACAAAAAqCAYAAADS4VmSAAAAAXNSR0IArs4c6QAABGdJREFUWEedmF2I3FQUx%2F9nZrYzq7ttMtuK32B90WpFEbtUW2T7UqqbjIgM%2BKQP%2BmAfBUEFP0H7oo%2BiIgg%2BqRUqk%2BwWRXTFj9UWoVIp7UN1H9QitTvJMtpOd3dydDI7k9zk3syd5C15257zO1%2F3I4S8z3xzJzp0MpweBDfioanf86iiPJPCOY7HwlzbzKUr1yQ4XgAgOZdhm4VRHcoLIHrft5ojCqMDiKF%2FGlQkcOfNgecjQowGcKS5ByX6NmUsDrXOe%2FFw9TvdVIwGEDdUNiawn%2F4NDR0%2BP4HKWCtPFPQBXP8EmO9UGonDEf0My7hLJwr6AHEDqjzryCSo9ACEtuM%2FYVevl3rneH8D2LoxptWWugBR2w2r8hGjMBxAaDt6BrbxRmZuHf81gJ%2FXLchsgEbzQRDN6SobyMWhmWdRq86roLMB4ooKVMWs4Q0Uuf4jYP4kfKfONKytxwdjR1vbsL5%2BXgdcDeD6J8G8U6vtukLJ2hDb8hdYxh2yKKgBsorJ9QJwYjMiMKzEZqRRkHKAhrcKwliPmC7ANrYN6A%2Bf2oTKtZelOW1%2FUUK93oml6RKYK%2BE7Yw01c1NyXhpggSto%2BZe0Qh%2FgMQBFFPC%2BlvykMY4Zasch0gBC4RUfx%2BzmDwYT5lem0Ql%2BTBkTWjW4HfbUqVhHvALgRRWgCDDXmkGw%2FpWWN%2BXLE9h%2FdW8z%2BtQzUETUIVkFWSjtw%2BzkQt%2BGCBD3pG2UUKcon43mCRBpbkZYhGXeF9UNj6PiX5Q5FgE4zUWAdmt5n2czEtLEP8Cu3huWeCxX6vVenHwadnWHtAsc7zcAN43iRA9gmAGNftZ05A8A18UBCQtcQstf06JmfhS16kdS7%2FsfHf9ZgA9p6Zs0xkjwngsHUNvyWeTNch0ofKxUpiIRNiO6BzXjp4Fow38OxK9HXZC8YDAfRK36dio1JaOCB0i%2BAiZBjvx1FcbKn8MyxWOZ670MxkviQuR4vwLYnnKG2QeRsfG9A9ssZYY%2Ba9BpXgRoPCVCWOwVoXvhFnDxtFLHsFOQTirS1rfDNpbSS3HD64Agv2JR8VZYm88MKcJ9AH8plWEEqJlFMQVq%2Bq8B3K8Y%2Fga2KY45XrfQ7s6Ea%2F9zBeo3RBud5IIJzPmmePJZ2QUOjuXKf6GzA0FpL8DvqjpJTIG7%2FCq48EIoTPQULOMdwXCyY%2BRU6eO4cDrCDCyzG92eGaUBWeE5%2FlsAH8yMBvMh1KrRqbgvrFhNIwDXOwfGNdJQOZ4PYMtIaWAso2b2LynJHxrHYZvTsQgwwfG7Px16T9f7bi0E3FQbDZ4ECu%2BF490lmuhDpWz%2FIiuJgmQzoiWAox1N1LoK2yyHn5zlJ2IA0dnf9dfArFq0ugeYK%2BOOSgAkfhBcWKYt1osCoC%2Fk%2BsfAvCszbbZJQwCC3bCnojNgXJsqAkmLzsoBIDgqBRkAuP5ZMN88EGqfK6N%2B22omvS5AX8nCUgUtI74IfQ%2Fb3DP8cqqiGBVAoSc%2FQFiIG%2F8K825W%2F%2Bv4D2sg4qMfRFPFAAAAAElFTkSuQmCC[float="right"]
 image:https://github.com/yupiik/fusion-mcp-server/actions/workflows/maven.yml/badge.svg?branch=main[Github CI,float="right"]
 image:https://img.shields.io/github/license/yupiik/fusion-mcp-server.svg[License]
 
 **Simple Model Context Protocol** (MCP) server using Yupiik Fusion JSON-RPC API.
 
+A MCP tool is a plain Fusion `@JsonRpc` method flagged with `@MCPTool`: the tool name, description and JSON schemas
+the model sees are derived from the method signature at build time, so there is nothing to declare twice and no
+reflection at runtime - it is GraalVM friendly out of the box.
+
 == 🔧 Getting Started
 
-You can run the demo with `mvn package -pl demo exec:exec` from the root directory and configure `http://localhost:8080/mcp` as MCP server.
+Run the demo server:
 
-== 📖 Documentation
+[source,bash]
+----
+mvn package -pl demo exec:exec
+----
 
-The repository provides two modules:
+Then register `http://localhost:8080/mcp` in your MCP client:
 
-* `mcp-server`: the MCP (Model Context Protocol) implementation on top of the Fusion JSON-RPC stack - JSON-RPC endpoint bound on `/mcp`, SSE support and MCP session handling,
-* `demo`: a sample MCP server exposing a demo tool and a demo prompt.
+[source,json]
+----
+{"mcpServers": {"demo": {"type": "http", "url": "http://localhost:8080/mcp"}}}
+----
 
-=== Exposing a tool or a prompt
+To add MCP to your own Fusion application, add the dependency and expose a tool:
 
-An MCP tool (resp. prompt) is a plain Fusion JSON-RPC method flagged with `@MCPTool` (resp. `@MCPPrompt`):
+[source,xml]
+----
+<dependency>
+  <groupId>io.yupiik.fusion.mcp</groupId>
+  <artifactId>fusion-mcp-server-impl</artifactId>
+  <version>${fusion-mcp-server.version}</version>
+</dependency>
+----
 
 [source,java]
 ----
@@ -27,22 +43,306 @@ An MCP tool (resp. prompt) is a plain Fusion JSON-RPC method flagged with `@MCPT
 public class MyTools {
     @MCPTool
     @JsonRpc(value = "my/tool", documentation = "My first MCP tool.")
-    public MyResult myTool(@JsonRpcParam final String input) {
+    public MyResult myTool(@JsonRpcParam(required = true, documentation = "What to greet.") final String input) {
         return new MyResult("hello " + input);
     }
 }
 ----
 
-The JSON-RPC method name becomes the MCP tool name; tool discovery (`tools/list`) reuses the OpenRPC metadata generated by Fusion (documentation, parameter and result JSON schemas), so tools are documented for the client at no extra cost.
+NOTE: the module only needs the Fusion annotation processor - which your application already uses for
+`@JsonRpc`/`@JsonModel` - nothing else has to be registered, the MCP endpoint comes with the dependency.
 
-=== Connecting a client
+== 📖 Documentation
 
-The server binds the endpoint on `/mcp` (HTTP transport). Once started - `mvn package -pl demo exec:exec` for the demo - register it in your MCP client, for example:
+The full documentation is published at https://yupiik.github.io/fusion-mcp-server/[yupiik.github.io/fusion-mcp-server]
+and its sources live in the `documentation` module (`mvn -pl documentation yupiik-tools:serve-minisite` for a live
+preview). What follows is a summary.
 
-[source,json]
+The repository provides three modules:
+
+* `mcp-server`: the MCP implementation on top of the Fusion JSON-RPC stack - streamable HTTP transport bound on
+`/mcp`, SSE channel, session handling and the MCP wire model,
+* `demo`: a sample MCP server exposing tools, a prompt, resources, completions and the three server to client requests (sampling, elicitation, roots),
+* `documentation`: the AsciiDoc minisite.
+
+=== Design
+
+The whole point of this implementation is that **MCP is JSON-RPC**, so the Fusion JSON-RPC stack does the heavy
+lifting and nothing is reinvented:
+
+[options="header",cols="1,3"]
+|===
+| Concern | How it is handled
+| MCP methods (`initialize`, `tools/call`, ...) | plain `@JsonRpc` methods in `MCPJSONRPCProtocol`, registered like any other method
+| Parameter binding and validation | the Fusion JSON-RPC generated codecs, no reflection
+| Tool/prompt discovery | the `META-INF/fusion/jsonrpc/openrpc.json` documents the processor generates plus the `mcp.type` bean metadata `@MCPTool`/`@MCPPrompt` set
+| Tool invocation | `JsonRpcHandler#execute`, i.e. the exact same path as a direct JSON-RPC call
+| Transport specifics (sessions, headers, SSE) | `MCPEndpoint` (`POST`) and `MCPSSEProtocol` (`GET`, `DELETE`)
+|===
+
+`MCPEndpoint` is registered with `@Order(900)`, i.e. before the Fusion JSON-RPC endpoint, so it takes precedence on
+the shared path - it then delegates to the very same `JsonRpcHandler`.
+
+=== Exposing a tool
+
+[source,java]
 ----
-{"mcpServers": {"demo": {"type": "http", "url": "http://localhost:8080/mcp"}}}
+@ApplicationScoped
+public class MyTools {
+    @MCPTool
+    @JsonRpc(value = "my/tool", documentation = "My first MCP tool.")
+    public MyResult myTool(@JsonRpcParam(required = true, documentation = "The input to process.") final String input) {
+        return new MyResult("hello " + input);
+    }
+}
 ----
+
+The JSON-RPC method name becomes the MCP tool name and `tools/list` reuses the OpenRPC metadata Fusion generates:
+
+* `documentation` becomes the tool `description` - this is what the model reads to decide to call it,
+* `@JsonRpcParam(documentation = ...)` becomes the description of the argument,
+* `@JsonRpcParam(required = true)` puts the argument in the schema `required` list,
+* the method signature becomes the `inputSchema` and the returned type the `outputSchema`.
+
+A tool result is sent both as `structuredContent` - the typed result - and as a text content block holding its JSON
+representation, so models without structured output support work too. Return a `ToolResponse` instead of your own
+model to take control of the content blocks:
+
+[source,java]
+----
+@MCPTool
+@JsonRpc(value = "my/report", documentation = "Builds a report.")
+public ToolResponse report() {
+    return ToolResponse.text("# Report", "All good.");
+}
+----
+
+A tool can also:
+
+* be asynchronous: return a `CompletionStage<T>` - the `outputSchema` describes `T`, i.e. what is actually sent,
+* access the MCP session: take a `io.yupiik.fusion.http.server.api.Request` parameter and call
+`MCPSessions#of(Request)`,
+* fail: any exception is reported as a tool failure (`isError: true`) so the model can read the message and react.
+Only invalid calls - unknown tool, missing or invalid argument - are reported as JSON-RPC errors.
+
+=== Exposing a prompt
+
+[source,java]
+----
+@MCPPrompt
+@JsonRpc(value = "my/prompt", documentation = "Reviews a code snippet.")
+public PromptResponse review(@JsonRpcParam(required = true, documentation = "The code to review.") final String code) {
+    return new PromptResponse(null, "Code review", List.of(new PromptResponse.Message(
+            Role.user, Content.text("Review this code: " + code))));
+}
+----
+
+MCP prompt arguments are always strings, so only declare `String` parameters, and the method must return a
+`PromptResponse`.
+
+=== Exposing resources
+
+Resources are data, not code, so they are provided at runtime by any bean implementing `MCPResources`:
+
+[source,java]
+----
+@ApplicationScoped
+public class MyResources implements MCPResources {
+    @Override
+    public List<Resource> resources() {
+        return List.of(Resource.of("app://config", "config", "application/json", "The application configuration."));
+    }
+
+    @Override
+    public List<ResourceTemplate> resourceTemplates() {
+        return List.of(ResourceTemplate.of("app://logs/{name}", "logs", "text/plain", "A log file."));
+    }
+
+    @Override
+    public Optional<ReadResourceResponse> read(final String uri) {
+        return "app://config".equals(uri) ?
+                Optional.of(ReadResourceResponse.of(ResourceContents.text(uri, "application/json", "{}"))) :
+                Optional.empty();
+    }
+}
+----
+
+All the implementations are used, in bean priority order (`@Order`), until one `read` returns a value. The
+`resources` capability - and `resources/list`, `resources/read`, `resources/templates/list`, `resources/subscribe`
+and `resources/unsubscribe` - is only advertised when there is at least one implementation.
+
+TIP: `Resource` is the resource *descriptor* - what `resources/list` returns - and `ResourceContents` its *content* -
+what `resources/read` returns - which mirrors the MCP schema.
+
+=== Argument completion
+
+Implement `MCPCompletions` to suggest values for a prompt argument or a resource template variable, return `null`
+when the request is not for you:
+
+[source,java]
+----
+@ApplicationScoped
+public class LanguageCompletions implements MCPCompletions {
+    @Override
+    public CompleteResult.Completion complete(final CompletionRef ref, final CompletionArgument argument,
+                                              final CompletionContext context) {
+        if (!"ref/prompt".equals(ref.type()) || !"my/prompt".equals(ref.name()) || !"lang".equals(argument.name())) {
+            return null;
+        }
+        return MCPCompletions.matching(List.of("fr", "en"), argument.value());
+    }
+}
+----
+
+=== Server to client messages
+
+Everything the server pushes to a client goes through the SSE channel the client opens with `GET /mcp`. Messages are
+buffered per session so nothing is lost when no stream is currently open.
+
+Inject `MCPNotifier` to broadcast a notification to all the connected clients:
+
+[source,java]
+----
+notifier.log(LoggingLevel.info, "my-logger", "something happened");  // notifications/message
+notifier.resourceUpdated("app://config");                            // only to the sessions which subscribed
+notifier.resourceListChanged();                                      // notifications/resources/list_changed
+notifier.toolListChanged();                                          // notifications/tools/list_changed
+notifier.promptListChanged();                                        // notifications/prompts/list_changed
+notifier.progress(new ProgressNotification(token, 0.5, 1., "half way"));
+----
+
+NOTE: log records are filtered per session with the level the client set with `logging/setLevel`, `info` by default.
+
+Use the session of the current call - `MCPSessions#of(Request)` - to ask something *to* the client. These require the
+matching client capability, declared during `initialize`, else the call fails with a clear error:
+
+[source,java]
+----
+@MCPTool
+@JsonRpc(value = "my/ask", documentation = "Asks the client model to answer a question.")
+public CompletionStage<MyResult> ask(@JsonRpcParam(required = true) final String question, final Request request) {
+    final var session = sessions.of(request);
+    return session
+            .createMessage(new CreateSamplingMessageParameters(          // sampling/createMessage
+                    null, 512, List.of(new SamplingMessage(Role.user, Content.text(question))),
+                    null, null, null, "You are a helpful assistant.", null))
+            .thenApply(response -> new MyResult(response.content().text()));
+}
+----
+
+[options="header",cols="1,2,1"]
+|===
+| Method | `MCPSession` API | Required client capability
+| `sampling/createMessage` | `createMessage(CreateSamplingMessageParameters)` | `sampling`
+| `elicitation/create` | `elicit(ElicitRequestParameters)` | `elicitation`
+| `roots/list` | `listRoots()` | `roots`
+| any | `request(method, params, resultType)` | -
+|===
+
+The client posts its answer back on `POST /mcp` and `MCPEndpoint` correlates it with the pending request. A request
+which is not answered within `fusion.mcp.clientRequestTimeout` seconds fails.
+
+=== Transport
+
+The server implements the MCP streamable HTTP transport on a single path, `/mcp`:
+
+[options="header",cols="1,3"]
+|===
+| Route | Behavior
+| `POST /mcp` | JSON-RPC requests, notifications and the responses to the server requests. A request answers `200` with the JSON-RPC response, a notification or a response answers `202` with an empty body.
+| `GET /mcp` | opens the `text/event-stream` channel of the session. `Last-Event-ID` resumes it where it stopped, the last 128 messages being kept per session.
+| `DELETE /mcp` | terminates the session, `204` when it was live, `404` when it was already gone.
+|===
+
+Headers:
+
+[options="header",cols="1,3"]
+|===
+| Header | Behavior
+| `Mcp-Session-Id` | returned by `initialize`, the client sends it back on every subsequent request. An unknown or expired identifier answers `404` so the client knows it must initialize again.
+| `MCP-Protocol-Version` | validated when set, an unsupported value answers `400`.
+| `Last-Event-ID` | on `GET`, replays the messages published after that event.
+|===
+
+Supported protocol versions are `2025-06-18` (the default) and `2025-03-26`. As the specification requires,
+`initialize` never fails on an unknown version: it answers the latest supported one and lets the client decide.
+
+A client which ignores `Mcp-Session-Id` keeps working - it gets a stateless session per request, so no SSE channel,
+no logging level and no subscription. Set `fusion.mcp.requireSession=true` to reject it with a `400` instead.
+
+=== Configuration
+
+All the keys can be set with a system property, an environment variable (`FUSION_MCP_...`) or any Fusion
+`ConfigurationSource`.
+
+[options="header",cols="2,1,3"]
+|===
+| Key | Default | Description
+| `fusion.mcp.name` | `fusion-mcp-server` | Programmatic server name sent in `initialize`.
+| `fusion.mcp.title` | `Fusion MCP Server` | Human readable server name.
+| `fusion.mcp.version` | `1.0.0` | Server version.
+| `fusion.mcp.instructions` | `Use the exposed tools to answer the user.` | How the model should use this server.
+| `fusion.mcp.sessionTimeout` | `1800` | Session idle timeout in seconds, `0` disables the expiration.
+| `fusion.mcp.clientRequestTimeout` | `30` | Timeout of the requests sent to the client (sampling, elicitation, roots), in seconds.
+| `fusion.mcp.requireSession` | `false` | Reject the requests without a valid `Mcp-Session-Id` header.
+| `fusion.jsonrpc.binding` | `/mcp` | Where the plain Fusion JSON-RPC endpoint is bound. Set it to `/jsonrpc` to *also* expose the JSON-RPC API next to MCP.
+|===
+
+=== Testing your server
+
+`MCPClient` is shipped in the main artifact - it has no test framework dependency - and drives a server the way a
+real client does, keeping the session and giving access to the SSE channel. Every call returns a `CompletionStage`,
+and parameters accept either a JSON string or any object serialized with the `JsonMapper`:
+
+[source,java]
+----
+@FusionSupport
+class MyToolsTest {
+    @Test
+    void call(@Fusion final URI mcpEndpoint, @Fusion final HttpClient http) {
+        try (final var client = new MCPClient(mcpEndpoint, http)) {
+            client.initialize().toCompletableFuture().join();
+
+            final var response = client.call(2, "tools/call", """
+                            {"name": "my/tool", "arguments": {"input": "fusion"}}""")
+                    .toCompletableFuture()
+                    .join();
+            assertEquals(200, response.statusCode());
+        }
+    }
+}
+----
+
+`openSse().thenCompose(client::nextMessage)` reads the server to client messages and `respond(id, result)` answers a
+sampling or elicitation request, so a full round trip is testable end to end - see `DemoTest#sampling`.
+
+=== Implemented specification surface
+
+[options="header",cols="1,1,3"]
+|===
+| Feature | Status | Notes
+| `initialize`, `notifications/initialized`, `ping` | ✅ | Version negotiation and session creation.
+| `tools/list`, `tools/call` | ✅ | From `@MCPTool`, with `inputSchema`, `outputSchema` and `structuredContent`.
+| `prompts/list`, `prompts/get` | ✅ | From `@MCPPrompt`.
+| `resources/*` | ✅ | From `MCPResources`, subscriptions included.
+| `completion/complete` | ✅ | From `MCPCompletions`.
+| `logging/setLevel`, `notifications/message` | ✅ | Per session level filtering.
+| `notifications/*/list_changed`, `notifications/resources/updated` | ✅ | Through `MCPNotifier`.
+| `sampling/createMessage`, `elicitation/create`, `roots/list` | ✅ | Through `MCPSession`, over the SSE channel.
+| `notifications/progress` | ✅ | Outgoing; the incoming ones are accepted and ignored.
+| `notifications/cancelled` | ⚠️ | Accepted and logged, the running JSON-RPC invocation is not interrupted.
+| Pagination (`nextCursor`) | ⚠️ | Not needed: every listing is computed once and returned at once.
+| HTTP+SSE transport (`2024-11-05`) | ❌ | Superseded by the streamable HTTP one; only the latter is implemented.
+|===
+
+Known limitations:
+
+* sessions live in memory, so a clustered deployment needs sticky routing on the `Mcp-Session-Id` header,
+* a tool returning `Optional<T>` has no usable `outputSchema` - and does not serialize either, Fusion has no
+`Optional` JSON codec - so return `T` or a `CompletionStage<T>`.
+
+NOTE: Fusion >= 1.0.38 is required: older versions describe an asynchronous result as a map of `T` in the generated
+OpenRPC document, which would make the `outputSchema` of every `CompletionStage<T>` tool wrong.
 
 == 🖥️ Contributing
 
@@ -57,7 +357,17 @@ We warmly welcome contributions!
 
 Pre-requisite: Apache Maven >= 4.0.0-rc1 and Java >= 25.
 
-TIP: it can be native-compiled with GraalVM is desired.
+[source,bash]
+----
+mvn clean install
+----
+
+IMPORTANT: the build currently depends on `fusion` `1.0.38-SNAPSHOT` - the release which fixes the OpenRPC result
+schema of asynchronous methods - so https://github.com/yupiik/fusion[Fusion] must be installed locally
+(`mvn clean install -T1C` in its clone) until `1.0.38` is out.
+
+TIP: it can be native-compiled with GraalVM if desired - `mvn arthur:native-image` in the `demo` module, and
+`mvn arthur:native-image arthur:docker` to also build the image.
 
 == 📜 License
 

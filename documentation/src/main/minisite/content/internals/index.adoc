@@ -1,0 +1,40 @@
+= Internals
+:minisite-index: 400
+:minisite-index-title: Internals
+:minisite-index-description: Design, demo, testing, contributing.
+:minisite-index-icon: sitemap
+:minisite-nav-prev-label: Conformance
+:minisite-nav-prev-link: ../deployment/conformance.html
+:minisite-nav-next-label: Design
+:minisite-nav-next-link: design.html
+
+How the implementation works, how to test a server built with it and how to contribute.
+
+[options="header",cols="1,3"]
+|===
+| Page | Content
+| xref:design.adoc[Design] | the class map, a tool call step by step, the decisions and their reasons, the specification coverage.
+| xref:testing.adoc[Testing] | `MCPClient`, asserting descriptors and notifications, testing a sampling round trip.
+| xref:demo.adoc[Demo] | a runnable tour of every feature, with a scripted session.
+| xref:contributing.adoc[Contributing] | build, conventions, tests, documentation workflow, release.
+|===
+
+== In one paragraph
+
+MCP is JSON-RPC 2.0 and Fusion already generates a reflectionless JSON-RPC stack at build time, so this project is
+mostly wiring: the MCP methods are plain `@JsonRpc` methods, `tools/call` re-enters the standard handler, the tool
+descriptors are a projection of the generated OpenRPC document, and the only genuinely specific part is the transport
+- sessions, SSE and the routing of the client responses. See xref:design.adoc[Design] for the details.
+
+== Package map
+
+[options="header",cols="1,3"]
+|===
+| Package | Content
+| `io.yupiik.fusion.mcp.api` | what an application uses: `@MCPTool`, `@MCPPrompt`, `MCPResources`, `MCPCompletions`, `MCPNotifier`.
+| `io.yupiik.fusion.mcp.protocol` | the transport and the MCP methods: `MCPEndpoint`, `MCPSSEProtocol`, `MCPJSONRPCProtocol`, `MCPSession(s)`, `SseBus`.
+| `io.yupiik.fusion.mcp.service` | `OpenRpcService` and `DescriptorService`, i.e. how the descriptors are computed.
+| `io.yupiik.fusion.mcp.model` | the wire model, one `@JsonModel` record per MCP structure.
+| `io.yupiik.fusion.mcp.client` | `MCPClient`, the client side of the transport.
+| `io.yupiik.fusion.mcp.configuration` | `MCPConfiguration` and the JSON-RPC binding default.
+|===

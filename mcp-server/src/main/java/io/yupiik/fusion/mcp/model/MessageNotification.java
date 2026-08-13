@@ -15,13 +15,20 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * {@code notifications/message} parameters, i.e. a log record sent to the client.
+ *
+ * @param logger the logger name, it is free form.
+ * @param level  the severity, the client only gets records at or above the level it asked for with {@code logging/setLevel}.
+ * @param data   the payload, it can be a plain string or any JSON structure.
+ */
 @JsonModel
 public record MessageNotification(
-        String logger,
-        LoggingLevel level,
-        // can be string or not
-        Object data
-) {
-}
+        @Property(documentation = "Free form logger name.") String logger,
+        @Property(documentation = "Severity of the record.") LoggingLevel level,
+
+        @Property(documentation = "The payload, a string or any JSON structure.")
+        Object data) {}

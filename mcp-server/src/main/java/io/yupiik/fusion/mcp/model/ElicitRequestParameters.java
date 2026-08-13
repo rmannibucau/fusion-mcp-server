@@ -15,11 +15,19 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 
+/**
+ * {@code elicitation/create} parameters, i.e. an input the server asks the client user for.
+ *
+ * @param message         what to show to the user.
+ * @param requestedSchema a flat object JSON-Schema - primitive properties only - describing the expected answer.
+ */
 @JsonModel
 public record ElicitRequestParameters(
+        @Property(documentation = "What to show to the user.")
         String message,
-        JsonSchema requestedSchema
-) {
-}
+
+        @Property(documentation = "A flat object schema - primitive properties only - describing the expected answer.")
+        JsonSchema requestedSchema) {}

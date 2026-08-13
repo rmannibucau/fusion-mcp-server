@@ -15,20 +15,42 @@
  */
 package io.yupiik.fusion.mcp.model;
 
+import io.yupiik.fusion.framework.build.api.configuration.Property;
 import io.yupiik.fusion.framework.build.api.json.JsonModel;
 import io.yupiik.fusion.framework.build.api.json.JsonProperty;
-
 import java.util.List;
 
+/**
+ * {@code prompts/get} result, i.e. the messages a prompt expands to.
+ * <p>
+ * A JSON-RPC method flagged with {@code io.yupiik.fusion.mcp.api.MCPPrompt} must return this type.
+ */
 @JsonModel
 public record PromptResponse(
-        @JsonProperty("_meta") Metadata metadata,
+        @Property(documentation = "Optional free form metadata.") @JsonProperty("_meta")
+        Metadata metadata,
+
+        @Property(documentation = "What the expanded prompt is about.")
         String description,
-        List<Message> messages
-) {
+
+        @Property(documentation = "The messages the prompt expands to.")
+        List<Message> messages,
+
+        @Property(documentation = "The type of this result, see the {@code 2026-07-28} specification.")
+        ResultType resultType) {
     @JsonModel
     public record Message(
+            @Property(documentation = "Who the message comes from.")
             Role role,
-            Content content
-    ) {}
+
+            @Property(documentation = "The message content, a single block or an array of blocks.")
+            Object content) {
+        public static Message of(final Role role, final Content content) {
+            return new Message(role, content);
+        }
+
+        public static Message of(final Role role, final List<Content> content) {
+            return new Message(role, content);
+        }
+    }
 }
