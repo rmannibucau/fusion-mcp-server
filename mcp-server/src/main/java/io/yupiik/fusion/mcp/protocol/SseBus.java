@@ -103,7 +103,7 @@ public class SseBus implements Flow.Publisher<ByteBuffer> {
 
     /**
      * @param onClose the hook invoked once when the stream is closed with {@link #cancel()}, it lets the owner
-     *                release what the stream was holding - e.g. a modern subscription.
+     *                release what the stream was holding - e.g. a stateless subscription.
      */
     public void onClose(final Runnable onClose) {
         this.onClose = onClose;

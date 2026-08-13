@@ -45,11 +45,11 @@ public final class MCPProtocol {
     public static final List<String> STATELESS_VERSIONS = List.of("2026-07-28");
 
     /**
-     * The modern protocol versions the server treats with strict {@code 2026-07-28} semantics: required per-request
-     * {@code _meta}, mandatory {@code resultType}, and the {@code 2026-07-28} error-code policy. A request opened on
-     * any other version - legacy, or a tolerated legacy-modern request - stays tolerant with its own rules.
+     * The stateless protocol versions the server treats with strict {@code 2026-07-28} semantics: required
+     * per-request {@code _meta}, mandatory {@code resultType}, and the {@code 2026-07-28} error-code policy. A
+     * request opened on any other version - legacy, or a tolerated legacy request - stays tolerant with its own rules.
      */
-    public static final List<String> STRICT_MODERN_VERSIONS = List.of("2026-07-28");
+    public static final List<String> STRICT_STATELESS_VERSIONS = List.of("2026-07-28");
 
     /**
      * Header carrying the session identifier, it is returned by {@code initialize} and sent back by the client on
@@ -68,54 +68,54 @@ public final class MCPProtocol {
     public static final String LAST_EVENT_ID_HEADER = "last-event-id";
 
     /**
-     * Header a modern client sends to state which JSON-RPC method a fire-and-forget body carries, it must match the
-     * body {@code method} when both are present - a mismatch is a {@link #HEADER_MISMATCH}.
+     * Header a stateless client sends to state which JSON-RPC method a fire-and-forget body carries, it must match
+     * the body {@code method} when both are present - a mismatch is a {@link #HEADER_MISMATCH}.
      */
     public static final String METHOD_HEADER = "mcp-method";
 
     /**
-     * Header a modern client may send to name the stream it opens, it is only informative.
+     * Header a stateless client may send to name the stream it opens, it is only informative.
      */
     public static final String NAME_HEADER = "mcp-name";
 
     /**
-     * The {@code _meta} key carrying the protocol version of a modern request - when it is absent the version is read
-     * from the {@link #PROTOCOL_VERSION_HEADER} header.
+     * The {@code _meta} key carrying the protocol version of a stateless request - when it is absent the version is
+     * read from the {@link #PROTOCOL_VERSION_HEADER} header.
      */
     public static final String PROTOCOL_VERSION_META = "io.modelcontextprotocol/protocolVersion";
 
     /**
-     * The {@code _meta} key carrying what the modern client can do.
+     * The {@code _meta} key carrying what the stateless client can do.
      */
     public static final String CLIENT_CAPABILITIES_META = "io.modelcontextprotocol/clientCapabilities";
 
     /**
-     * The {@code _meta} key carrying which modern client is connecting.
+     * The {@code _meta} key carrying which stateless client is connecting.
      */
     public static final String CLIENT_INFO_META = "io.modelcontextprotocol/clientInfo";
 
     /**
-     * The {@code _meta} key carrying the log level the modern client wants to receive.
+     * The {@code _meta} key carrying the log level the stateless client wants to receive.
      */
     public static final String LOG_LEVEL_META = "io.modelcontextprotocol/logLevel";
 
     /**
-     * The {@code _meta} key carrying the progress token of a modern request.
+     * The {@code _meta} key carrying the progress token of a stateless request.
      */
     public static final String PROGRESS_TOKEN_META = "io.modelcontextprotocol/progressToken";
 
     /**
-     * The {@code _meta} key of a modern result carrying the server identity.
+     * The {@code _meta} key of a stateless result carrying the server identity.
      */
     public static final String SERVER_INFO_META = "io.modelcontextprotocol/serverInfo";
 
     /**
-     * The {@code _meta} key of a modern notification carrying the subscription it targets.
+     * The {@code _meta} key of a stateless notification carrying the subscription it targets.
      */
     public static final String SUBSCRIPTION_ID_META = "io.modelcontextprotocol/subscriptionId";
 
     /**
-     * The {@code _meta} key a modern client echoes to resume a multi round-trip interaction, it is the
+     * The {@code _meta} key a stateless client echoes to resume a multi round-trip interaction, it is the
      * {@code requestState} a previous {@code input_required} result returned.
      */
     public static final String REQUEST_STATE_META = "io.modelcontextprotocol/requestState";
@@ -133,7 +133,7 @@ public final class MCPProtocol {
     public static final String SUBSCRIPTION_ID_ATTRIBUTE = "io.yupiik.fusion.mcp.subscriptionId";
 
     /**
-     * Request attribute holding the parsed {@code _meta} envelope of a modern request, exposed to the JSON-RPC
+     * Request attribute holding the parsed {@code _meta} envelope of a stateless request, exposed to the JSON-RPC
      * methods.
      */
     public static final String REQUEST_META_ATTRIBUTE = "io.yupiik.fusion.mcp.requestMeta";

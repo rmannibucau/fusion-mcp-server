@@ -198,7 +198,7 @@ public class MCPJSONRPCProtocol {
                     final Capabilities capabilities,
             @JsonRpcParam(documentation = "Which client is connecting.") final ClientInfo clientInfo,
             final Request request) {
-        // initialize is a legacy handshake, a modern client discovers the server with server/discover
+        // initialize is a legacy handshake, a stateless client discovers the server with server/discover
         if (stateless(request)) {
             throw new JsonRpcException(-32601, "initialize is only available over the legacy protocol", null, null);
         }
@@ -292,8 +292,9 @@ public class MCPJSONRPCProtocol {
      * @return the identifier as a number when it is numeric, else the string itself - to echo it back as sent.
      */
     private Object parseSubscriptionId(final String subscriptionId) {
+        // both call sites only invoke it with a non-null identifier, checked just before
         try {
-            return Long.parseLong(subscriptionId == null ? "" : subscriptionId.trim());
+            return Long.parseLong(subscriptionId.trim());
         } catch (final NumberFormatException nfe) {
             return subscriptionId;
         }
@@ -490,12 +491,13 @@ public class MCPJSONRPCProtocol {
             return false;
         }
         final var chars = value.toCharArray();
-        var padding = 0;
         for (var i = 0; i < chars.length; i++) {
             final var c = chars[i];
             if (c == '=') {
-                if (++padding > 2 || i < chars.length - padding) {
-                    return false; // '=' only as a trailing padding of one or two characters
+                // '=' is only valid as the trailing padding of one or two characters - the position check also
+                // rejects any third '=' since it would sit before the last two positions
+                if (i < chars.length - 2) {
+                    return false;
                 }
             } else if (!(c >= 'A' && c <= 'Z'
                     || c >= 'a' && c <= 'z'
@@ -836,8 +838,8 @@ public class MCPJSONRPCProtocol {
     }
 
     /**
-     * Applies the {@code _meta} envelope of a modern request to its session - and exposes the decoded request state
-     * and the client input responses to the invoked methods.
+     * Applies the {@code _meta} envelope of a stateless request to its session - and exposes the decoded request
+     * state and the client input responses to the invoked methods.
      */
     private void applyRequestMetadata(final MCPSession session, final Object metadata, final Request request) {
         applyRequestMetadata(session, metadata, null, null, request);
@@ -845,7 +847,7 @@ public class MCPJSONRPCProtocol {
 
     /**
      * Applies the {@code _meta} envelope - and the SDK-style top-level {@code inputResponses}/{@code requestState} -
-     * of a modern request to its session and to the request attributes the invoked methods read.
+     * of a stateless request to its session and to the request attributes the invoked methods read.
      */
     private void applyRequestMetadata(
             final MCPSession session,
@@ -887,10 +889,10 @@ public class MCPJSONRPCProtocol {
     }
 
     /**
-     * Normalizes the {@code _meta} envelope bound to the {@code _meta} JSON-RPC parameter: a modern client sends the
-     * {@code io.modelcontextprotocol/*} namespaced keys, a legacy one - {@code 2025-03-26} to {@code 2025-11-25} - the
-     * bare keys. {@link MCPRequestMetadata} reads only the namespaced ones, so the bare {@code progressToken} (the
-     * only optional field the conformance suite exercises on both eras) is folded back in.
+     * Normalizes the {@code _meta} envelope bound to the {@code _meta} JSON-RPC parameter: a stateless client sends
+     * the {@code io.modelcontextprotocol/*} namespaced keys, a legacy one - {@code 2025-03-26} to {@code 2025-11-25} -
+     * the bare keys. {@link MCPRequestMetadata} reads only the namespaced ones, so the bare {@code progressToken}
+     * (the only optional field the conformance suite exercises on both eras) is folded back in.
      *
      * @param raw the value the JSON-RPC binding produced for {@code _meta}: a {@link MCPRequestMetadata} when it was
      *            bound from a namespaced envelope, else a {@link Map}.
@@ -905,7 +907,7 @@ public class MCPJSONRPCProtocol {
         }
         @SuppressWarnings("unchecked")
         final var named = jsons.fromString(MCPRequestMetadata.class, jsons.toString((Map<String, Object>) map));
-        if (named.progressToken() != null) { // a namespaced (modern) token was present
+        if (named.progressToken() != null) { // a namespaced token was present
             return named;
         }
         // legacy clients only know the bare _meta keys

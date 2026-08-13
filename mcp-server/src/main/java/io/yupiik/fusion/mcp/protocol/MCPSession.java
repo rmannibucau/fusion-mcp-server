@@ -153,11 +153,11 @@ public class MCPSession {
     }
 
     /**
-     * Applies the {@code _meta} envelope of a modern request: what the client can do, who it is, the log level it
+     * Applies the {@code _meta} envelope of a stateless request: what the client can do, who it is, the log level it
      * wants, the progress token of the call and the state of its multi round-trip interaction.
      *
-     * @param clientCapabilities what the modern client declared it can do.
-     * @param clientInfo         which modern client is connecting.
+     * @param clientCapabilities what the stateless client declared it can do.
+     * @param clientInfo         which stateless client is connecting.
      * @param progressToken      the token of the current request, sent back in {@code notifications/progress}.
      * @param inputResponses     the answers to the {@code inputRequests} of a previous {@code input_required} result.
      * @param requestState       the state decoded from the {@code requestState} token the client echoed.
@@ -304,8 +304,8 @@ public class MCPSession {
     }
 
     /**
-     * Sends a notification to a modern subscription, tagged with the subscription so the client routes it to the right
-     * stream.
+     * Sends a notification to a stateless subscription, tagged with the subscription so the client routes it to the
+     * right stream.
      *
      * @param method         the notification name.
      * @param params         its parameters, any {@code @JsonModel} instance, map or list.
@@ -484,7 +484,7 @@ public class MCPSession {
             return;
         }
         if (stateless) {
-            // the modern spec wants the missing capabilities as a ClientCapabilities object keyed by name, not an
+            // the stateless spec wants the missing capabilities as a ClientCapabilities object keyed by name, not an
             // array of names - { "sampling": {} } for example
             throw new JsonRpcException(
                     MCPProtocol.MISSING_CLIENT_CAPABILITY,

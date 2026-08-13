@@ -75,7 +75,7 @@ class DemoTest {
         try (final var client = new MCPClient(mcpEndpoint, http, jsons)) {
             final var discovery = client.discover().toCompletableFuture().join();
 
-            // the demo serves the modern stateless 2026-07-28 protocol in addition to the legacy one
+            // the demo serves the stateless 2026-07-28 protocol in addition to the legacy one
             assertTrue(client.isStateless());
             assertEquals(MCPProtocol.STATELESS_VERSIONS, discovery.supportedVersions());
             assertNotNull(discovery.capabilities().tools());

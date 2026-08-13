@@ -143,7 +143,7 @@ class MCPNotifierTest {
     }
 
     @Test
-    void aModernSubscriptionGetsOnlyWhatItOptedInTo(@Fusion final JsonMapper jsons) {
+    void aStatelessSubscriptionGetsOnlyWhatItOptedInTo(@Fusion final JsonMapper jsons) {
         final var sessions = sessions(jsons);
         final var notifier = new MCPNotifier(sessions);
         final var listener = sessions.ephemeral(true);

@@ -30,7 +30,7 @@ import java.util.List;
  */
 @JsonModel
 public record ServerDiscoverResponse(
-        @Property(documentation = "The MCP protocol versions this server supports for modern requests.")
+        @Property(documentation = "The MCP protocol versions this server supports for stateless requests.")
         List<String> supportedVersions,
 
         @Property(documentation = "What this server can do.")

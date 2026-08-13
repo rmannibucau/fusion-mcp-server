@@ -154,26 +154,27 @@ public class MCPEndpoint {
         if (calls.isEmpty()) { // only notifications and/or responses, nothing to answer
             return completedFuture(response(null, request, resolution, false));
         }
-        final var modern = isModern(request, calls);
+        final var stateless = isStateless(request, calls);
         return handler.execute(payload instanceof List<?> ? calls : calls.get(0), request)
-                .thenApply(result -> response(result, request, resolution, modern))
+                .thenApply(result -> response(result, request, resolution, stateless))
                 .exceptionally(error -> onError(-32603, error));
     }
 
     /**
      * The stateless {@code 2026-07-28} transport requires the {@code MCP-Method}/{@code MCP-Name} headers to route
-     * fire-and-forget responses: a modern request must carry an {@code Mcp-Method} matching its body method, and an
-     * {@code Mcp-Name} matching the {@code params.name}/{@code params.uri} of a {@code tools/call}/{@code resources/read}.
-     * A missing or mismatched header is a {@code -32020} error. Legacy requests - and batches - are not enforced.
+     * fire-and-forget responses: a stateless request must carry an {@code Mcp-Method} matching its body method, and
+     * an {@code Mcp-Name} matching the {@code params.name}/{@code params.uri} of a {@code tools/call}/{@code
+     * resources/read}. A missing or mismatched header is a {@code -32020} error. Legacy requests - and batches - are
+     * not enforced.
      */
     private Response validateMethodHeader(final Request request, final List<Object> calls, final Object id) {
         if (calls.size() != 1 || !(calls.get(0) instanceof Map<?, ?> map)) {
             return null;
         }
         final String version = request.header(PROTOCOL_VERSION_HEADER);
-        final boolean modern = request.header(MCPProtocol.METHOD_HEADER) != null
+        final boolean stateless = request.header(MCPProtocol.METHOD_HEADER) != null
                 || version != null && MCPProtocol.STATELESS_VERSIONS.contains(version);
-        if (!modern) {
+        if (!stateless) {
             return null; // a legacy - or a body-_meta opened - request, no header obligation
         }
         final var method = request.header(MCPProtocol.METHOD_HEADER);
@@ -226,13 +227,13 @@ public class MCPEndpoint {
 
     /**
      * When the {@code MCP-Protocol-Version} header - or the {@code _meta.io.modelcontextprotocol/protocolVersion} of a
-     * modern request - names a version this server does not implement, the client is rejected with a {@code -32022}
+     * stateless request - names a version this server does not implement, the client is rejected with a {@code -32022}
      * {@code UnsupportedProtocolVersionError} listing the versions this server supports. A header and a body version
      * which disagree are rejected first with a {@code -32020} {@code HeaderMismatch}.
      */
     private Response validateVersion(final Request request, final List<Object> calls, final Object id) {
         final var header = request.header(PROTOCOL_VERSION_HEADER);
-        final var bodyVersion = modernVersion(calls);
+        final var bodyVersion = metaVersion(calls);
         if (header != null && bodyVersion != null && !header.equals(bodyVersion)) {
             return error(
                     id,
@@ -284,22 +285,22 @@ public class MCPEndpoint {
     }
 
     /**
-     * Enforces the strict {@code 2026-07-28} requirement that every modern request carries a
+     * Enforces the strict {@code 2026-07-28} requirement that every stateless request carries a
      * {@code io.modelcontextprotocol/protocolVersion}, a {@code io.modelcontextprotocol/clientInfo} and a
      * {@code io.modelcontextprotocol/clientCapabilities} in {@code _meta} - a missing field is a {@code -32602}
      * invalid-params error, and on HTTP a {@code 400}.
      * <p>
-     * Gated on the resolved modern version being one of {@link MCPProtocol#STRICT_MODERN_VERSIONS}: a tolerated
-     * legacy-modern request on an older version stays tolerant.
+     * Gated on the resolved stateless version being one of {@link MCPProtocol#STRICT_STATELESS_VERSIONS}: a
+     * tolerated legacy request on an older version stays tolerant.
      */
     private Response validateStrictMeta(final Request request, final List<Object> calls, final Object id) {
         // the strict signal is the transport: a stateless MCP-Protocol-Version header, or a body _meta version
         final var header = request.header(PROTOCOL_VERSION_HEADER);
-        final var bodyVersion = modernVersion(calls);
-        final var strict = (header != null && MCPProtocol.STRICT_MODERN_VERSIONS.contains(header))
-                || (bodyVersion != null && MCPProtocol.STRICT_MODERN_VERSIONS.contains(bodyVersion));
+        final var bodyVersion = metaVersion(calls);
+        final var strict = (header != null && MCPProtocol.STRICT_STATELESS_VERSIONS.contains(header))
+                || (bodyVersion != null && MCPProtocol.STRICT_STATELESS_VERSIONS.contains(bodyVersion));
         if (!strict) {
-            return null; // not a strict modern request, nothing to enforce here
+            return null; // not a strict stateless request, nothing to enforce here
         }
         final var missing = requiredMetaMissing(calls);
         if (missing != null) {
@@ -310,10 +311,10 @@ public class MCPEndpoint {
 
     /**
      * @param calls the calls of the payload, the version is read from the single call - or the header.
-     * @return the {@code io.modelcontextprotocol/protocolVersion} that opened this request, or {@code null} when each
-     * call declares a non-modern version.
+     * @return the {@code io.modelcontextprotocol/protocolVersion} that opened this request, or {@code null} when the
+     * call does not declare one in its {@code _meta}.
      */
-    private String modernVersion(final List<Object> calls) {
+    private String metaVersion(final List<Object> calls) {
         if (calls.size() == 1 && calls.get(0) instanceof Map<?, ?> call) {
             final var meta = meta(call);
             if (meta != null) {
@@ -359,9 +360,9 @@ public class MCPEndpoint {
      * Decides if a request is served over the stateless {@code 2026-07-28} protocol: an {@code MCP-Protocol-Version}
      * header naming a stateless version, an {@code MCP-Method} header or a {@code _meta} protocolVersion naming one.
      */
-    private boolean isModern(final Request request, final List<Object> calls) {
-        // an explicit protocol version wins: a stateless one (2026-07-28) is modern, a supported legacy one is not -
-        // a conformance client crafts a legacy initialize carrying an Mcp-Method header, which must stay legacy
+    private boolean isStateless(final Request request, final List<Object> calls) {
+        // an explicit protocol version wins: a stateless one (2026-07-28) is, a supported legacy one is not - a
+        // conformance client crafts a legacy initialize carrying an Mcp-Method header, which must stay legacy
         final var protocolVersion = request.header(PROTOCOL_VERSION_HEADER);
         if (protocolVersion != null) {
             return MCPProtocol.STATELESS_VERSIONS.contains(protocolVersion);
@@ -384,7 +385,7 @@ public class MCPEndpoint {
      * Resolves - and creates for {@code initialize} - the session of the call and binds it to the request.
      */
     private Resolution resolveSession(final Request request, final List<Object> calls) {
-        if (isModern(request, calls)) {
+        if (isStateless(request, calls)) {
             // the stateless protocol has no session: every request is independent, the client gets a fresh state and
             // the responses carry the stateless result fields
             final var stateless = sessions.ephemeral(true);
@@ -437,7 +438,7 @@ public class MCPEndpoint {
     }
 
     private Response response(
-            final Object payload, final Request request, final Resolution resolution, final boolean modern) {
+            final Object payload, final Request request, final Resolution resolution, final boolean stateless) {
         if (payload instanceof io.yupiik.fusion.jsonrpc.Response jsonRpc
                 && jsonRpc.result() instanceof ResponseWithBus rwb) {
             // a stateless subscriptions/listen: the "result" is a stream, not a JSON body, the bus commits the
@@ -471,7 +472,7 @@ public class MCPEndpoint {
         }
         // a stateless request which published notifications while running - e.g. progress - answers on the response
         // stream: the buffered notifications first, the final result last
-        if (modern && payload instanceof io.yupiik.fusion.jsonrpc.Response jsonRpc && jsonRpc.result() != null) {
+        if (stateless && payload instanceof io.yupiik.fusion.jsonrpc.Response jsonRpc && jsonRpc.result() != null) {
             final var notifications = resolution.session().sse().drainQueuedJson();
             if (!notifications.isEmpty()) {
                 return streamResponse(request, notifications, payload);
@@ -479,7 +480,7 @@ public class MCPEndpoint {
         }
         // the stateless protocol maps the JSON-RPC errors to HTTP: a method the server does not implement is a 404,
         // everything else is a 400 - the legacy transport answers every error with a 200
-        final var status = modern ? httpStatusOf(payload) : 200;
+        final var status = stateless ? httpStatusOf(payload) : 200;
         return builder.status(status)
                 .body((IOConsumer<Writer>) writer -> {
                     try (writer) {

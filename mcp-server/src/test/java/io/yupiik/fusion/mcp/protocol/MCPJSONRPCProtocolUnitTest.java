@@ -49,6 +49,7 @@ import io.yupiik.fusion.mcp.model.InputRequest;
 import io.yupiik.fusion.mcp.model.JsonSchema;
 import io.yupiik.fusion.mcp.model.LoggingLevel;
 import io.yupiik.fusion.mcp.model.MCPRequestMetadata;
+import io.yupiik.fusion.mcp.model.Metadata;
 import io.yupiik.fusion.mcp.model.PromptResponse;
 import io.yupiik.fusion.mcp.model.ReadResourceResponse;
 import io.yupiik.fusion.mcp.model.Resource;
@@ -507,7 +508,7 @@ class MCPJSONRPCProtocolUnitTest {
     @Test
     void aLegacyRequestDoesNotRequireTheMcpParamHeaders(
             @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
-        // the Mcp-Param-* headers belong to the modern stateless transport, a legacy request is not enforced
+        // the Mcp-Param-* headers belong to the stateless transport, a legacy request is not enforced
         final var setup = protocol(jsons, container)
                 .tool("a/tool", params -> completedFuture(ToolResponse.text("ok")))
                 .schemas(headerToolSchemas())
@@ -1429,7 +1430,7 @@ class MCPJSONRPCProtocolUnitTest {
     void theLegacyOnlyUtilitiesAreRejectedOverTheStatelessProtocol(
             @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
         // ping, logging/setLevel, resources/subscribe and resources/unsubscribe belong to the legacy protocol: the
-        // modern one replaced them (subscriptions/listen, logging on server/discover, subscriptions)
+        // stateless one replaced them (subscriptions/listen, logging on server/discover, subscriptions)
         final var setup = protocol(jsons, container).build();
         final var request = new StubRequest();
         setup.sessions().bind(request, setup.sessions().ephemeral(true));
@@ -1568,6 +1569,254 @@ class MCPJSONRPCProtocolUnitTest {
                 .toCompletableFuture()
                 .join();
         assertEquals(4, kept.inputRequests().size());
+    }
+
+    @Test
+    void anInputRequiredResultWithNoRequestsKeepsThemEmpty(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // an INPUT_REQUIRED error carrying a non map data has no inputRequests: the input_required result is empty
+        final var setup = protocol(jsons, container)
+                .tool(
+                        "a/tool",
+                        params -> failedFuture(
+                                new JsonRpcException(MCPProtocol.INPUT_REQUIRED, "input", "not-a-map", null)))
+                .build();
+        final var request = new StubRequest();
+        setup.sessions().bind(request, setup.sessions().ephemeral(true));
+
+        final var result = setup.protocol()
+                .callTool("a/tool", Map.of(), null, request)
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(ResultType.input_required, result.resultType());
+        assertTrue(result.inputRequests().isEmpty());
+    }
+
+    @Test
+    void anInputRequiredCallWithNoHttpRequestKeepsEverything(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // httpRequest == null: nothing is known about the client capabilities, every input request is kept
+        final var setup = protocol(jsons, container)
+                .tool(
+                        "a/tool",
+                        params -> failedFuture(new InputRequiredException(
+                                Map.of(
+                                        "elicitation/create",
+                                        new InputRequest("elicitation/create", Map.of("prompt", "What?"))),
+                                "state")))
+                .build();
+
+        final var result = setup.protocol()
+                .callTool("a/tool", Map.of(), null, null)
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(ResultType.input_required, result.resultType());
+        assertEquals(1, result.inputRequests().size(), "without a request the client capabilities are unknown");
+    }
+
+    @Test
+    void anInputRequiredWithoutDeclaredCapabilitiesKeepsEverything(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // a stateless session has no client capabilities - the transport opens it on the fly - so no input request
+        // can be dropped
+        final var setup = protocol(jsons, container)
+                .tool(
+                        "a/tool",
+                        params -> failedFuture(new InputRequiredException(
+                                Map.of(
+                                        "elicitation", new InputRequest("elicitation/create", Map.of()),
+                                        "sampling", new InputRequest("sampling/createMessage", Map.of()),
+                                        "roots", new InputRequest("roots/list", Map.of())),
+                                "state")))
+                .build();
+        final var request = statelessRequest(Map.of(), setup);
+
+        final var result = setup.protocol()
+                .callTool("a/tool", Map.of(), null, request)
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(ResultType.input_required, result.resultType());
+        assertEquals(3, result.inputRequests().size());
+    }
+
+    @Test
+    void listingTasksOverTheLegacyProtocolHasNoResultType(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        final var setup = protocol(jsons, container).build();
+        assertNull(setup.protocol().listTasks(null, null).resultType());
+    }
+
+    @Test
+    void anEmptyMetaIsIgnored(@Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        final var setup = protocol(jsons, container)
+                .tool("a/tool", params -> completedFuture(ToolResponse.text("ok")))
+                .build();
+        final var request = new StubRequest();
+        setup.sessions().bind(request, setup.sessions().ephemeral(true));
+
+        // an empty map envelope and a non map value are both treated as "no meta"
+        for (final var meta : List.<Object>of(Map.of(), "not-a-meta")) {
+            final var result = setup.protocol()
+                    .callTool("a/tool", Map.of(), meta, request)
+                    .toCompletableFuture()
+                    .join();
+            assertFalse(result.isError(), () -> String.valueOf(meta));
+        }
+    }
+
+    @Test
+    void aMetaRequestStateIsDecodedForTheTool(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        final var setup = protocol(jsons, container)
+                .tool("a/tool", params -> completedFuture(ToolResponse.text("ok")))
+                .build();
+        final var session = setup.sessions().ephemeral(true);
+        // an empty token is treated as "no state", a non-empty one is decoded and exposed both on the request and the
+        // session
+        for (final var stateToken : List.of("a-state-token", "")) {
+            final var request = new StubRequest();
+            setup.sessions().bind(request, session);
+            final var meta = new MCPRequestMetadata(null, null, null, null, null, null, stateToken, null);
+
+            setup.protocol()
+                    .callTool("a/tool", Map.of(), meta, request)
+                    .toCompletableFuture()
+                    .join();
+
+            final var expected = stateToken.isEmpty() ? null : stateToken;
+            assertEquals(expected, request.attribute(MCPProtocol.REQUEST_STATE_ATTRIBUTE, String.class));
+            if (!stateToken.isEmpty()) {
+                assertEquals(expected, session.requestState());
+            }
+        }
+    }
+
+    @Test
+    void theProtocolVersionHeaderSelectsTheToolsListing(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        final var setup = protocol(jsons, container)
+                .tool("a/tool", params -> completedFuture(ToolResponse.text("ok")))
+                .build();
+        final var request = new StubRequest(Map.of(MCPProtocol.PROTOCOL_VERSION_HEADER, "2026-07-28"));
+
+        final var response = setup.protocol().listTools(null, request);
+
+        assertEquals("a/tool", response.tools().getFirst().name());
+    }
+
+    @Test
+    void aNonMapArgumentsBypassesTheHeaderValidation(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // the Mcp-Param-* headers only match map arguments, anything else skips the validation
+        final var setup = protocol(jsons, container)
+                .tool("a/tool", params -> completedFuture(ToolResponse.text("ok")))
+                .schemas(headerToolSchemas())
+                .build();
+        final var request = statelessRequest(Map.of(), setup);
+
+        final var result = setup.protocol()
+                .callTool("a/tool", List.of("not", "a", "map"), null, request)
+                .toCompletableFuture()
+                .join();
+
+        assertFalse(result.isError());
+    }
+
+    @Test
+    void statelessReadResourceMergesTheExistingMetadata(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // the server info is added to the _meta the resource provider already set, without dropping it
+        final var setup = protocol(jsons, container)
+                .resources(new MCPResources() {
+                    @Override
+                    public List<Resource> resources() {
+                        return List.of(Resource.of("demo://meta", "meta", "text/plain", "A meta resource."));
+                    }
+
+                    @Override
+                    public Optional<ReadResourceResponse> read(final String uri) {
+                        return "demo://meta".equals(uri)
+                                ? Optional.of(new ReadResourceResponse(
+                                        new Metadata("name", "title", Map.of("k", "v")),
+                                        List.of(ResourceContents.text(uri, "text/plain", "content")),
+                                        null,
+                                        null,
+                                        null))
+                                : Optional.empty();
+                    }
+                })
+                .build();
+        final var request = new StubRequest();
+        setup.sessions().bind(request, setup.sessions().ephemeral(true));
+
+        final var response = setup.protocol().readResource("demo://meta", null, request);
+
+        assertEquals(ResultType.complete, response.resultType());
+        assertEquals("name", response.metadata().name());
+        assertEquals("title", response.metadata().title());
+        assertEquals(
+                Map.of(
+                        "k",
+                        "v",
+                        MCPProtocol.SERVER_INFO_META,
+                        setup.protocol().discover(null, request).serverInfo()),
+                response.metadata().others());
+    }
+
+    @Test
+    void aValidTwoPaddingBase64McpParamHeaderIsDecoded(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // SEP-2243 requires accepting a correctly placed '==' padding: base64("Hell") = "SGVsbA=="
+        final var setup = protocol(jsons, container)
+                .tool("a/tool", params -> completedFuture(ToolResponse.text("ok")))
+                .schemas(headerToolSchemas())
+                .build();
+        final var request = statelessRequest(Map.of("Mcp-Param-message", "=?base64?SGVsbA==?="), setup);
+
+        final var response = setup.protocol()
+                .callTool("a/tool", Map.of("message", "Hell"), null, request)
+                .toCompletableFuture()
+                .join();
+
+        assertFalse(response.isError());
+    }
+
+    @Test
+    void anEmptyBase64McpParamHeaderIsA32020(@Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // =?base64??= wraps an empty payload, which is not valid base64
+        final var setup = protocol(jsons, container)
+                .tool("a/tool", params -> completedFuture(ToolResponse.text("ok")))
+                .schemas(headerToolSchemas())
+                .build();
+        final var request = statelessRequest(Map.of("Mcp-Param-message", "=?base64??="), setup);
+
+        final var error = assertThrows(
+                JsonRpcException.class,
+                () -> setup.protocol().callTool("a/tool", Map.of("message", "x"), null, request));
+
+        assertEquals(MCPProtocol.HEADER_MISMATCH, error.code());
+    }
+
+    @Test
+    void aTrailingPaddingOfTwoIsDecodedAndAMiddleOneRejected(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // '=' is only valid as the trailing padding: a 8-char payload with a '=' before the last two characters is
+        // invalid even though its length is a multiple of 4
+        final var setup = protocol(jsons, container)
+                .tool("a/tool", params -> completedFuture(ToolResponse.text("ok")))
+                .schemas(headerToolSchemas())
+                .build();
+        final var request = statelessRequest(Map.of("Mcp-Param-message", "=?base64?SGVs=G8=?="), setup);
+
+        final var error = assertThrows(
+                JsonRpcException.class,
+                () -> setup.protocol().callTool("a/tool", Map.of("message", "Hello"), null, request));
+
+        assertEquals(MCPProtocol.HEADER_MISMATCH, error.code());
+        assertTrue(error.getMessage().contains("Invalid base64"), error.getMessage());
     }
 
     private JsonRpcException assertInstanceOfJsonRpc(final Throwable actual, final int code, final String message) {

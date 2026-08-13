@@ -28,12 +28,16 @@ import io.yupiik.fusion.http.server.api.Response;
 import io.yupiik.fusion.json.JsonMapper;
 import io.yupiik.fusion.jsonrpc.JsonRpcHandler;
 import io.yupiik.fusion.jsonrpc.JsonRpcRegistry;
+import io.yupiik.fusion.jsonrpc.impl.JsonRpcMethod;
 import io.yupiik.fusion.mcp.configuration.MCPConfiguration;
 import io.yupiik.fusion.mcp.test.SseSubscriber;
 import io.yupiik.fusion.mcp.test.StubJsonRpcMethod;
 import io.yupiik.fusion.mcp.test.StubRequest;
 import io.yupiik.fusion.testing.Fusion;
 import io.yupiik.fusion.testing.FusionSupport;
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.http.HttpServletRequest;
+import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
@@ -203,7 +207,7 @@ class MCPEndpointTest {
     }
 
     @Test
-    void aModernMethodHeaderMismatchIsRejected(
+    void aStatelessMethodHeaderMismatchIsRejected(
             @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
         final var response = endpoint(jsons, container)
                 .handle(new StubRequest(
@@ -234,7 +238,7 @@ class MCPEndpointTest {
     }
 
     @Test
-    void aStrictModernRequestNeedsTheRequiredMetaFields(
+    void aStrictStatelessRequestNeedsTheRequiredMetaFields(
             @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
         // 2026-07-28 requires clientCapabilities in _meta, else -32602 invalid params
         final var missingCapabilities = endpoint(jsons, container)
@@ -289,7 +293,7 @@ class MCPEndpointTest {
                 endpoint(jsons, container).handle(request).toCompletableFuture().join();
 
         assertEquals(200, response.status());
-        assertNull(response.headers().get(SESSION_HEADER), "the modern client gets no session");
+        assertNull(response.headers().get(SESSION_HEADER), "the stateless client gets no session");
     }
 
     @Test
@@ -327,7 +331,7 @@ class MCPEndpointTest {
     @Test
     void anMcpMethodHeaderAloneMakesTheRequestStateless(
             @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
-        // no protocol version header, but the mcp-method header marks a modern fire-and-forget client
+        // no protocol version header, but the mcp-method header marks a stateless fire-and-forget client
         final var response = endpoint(jsons, container)
                 .handle(new StubRequest(Map.of(MCPProtocol.METHOD_HEADER, "a/tool"), """
                         {"jsonrpc": "2.0", "id": 1, "method": "a/tool", "params": {}}"""))
@@ -377,7 +381,7 @@ class MCPEndpointTest {
 
     @Test
     void aMissingMcpNameHeaderIsRejected(@Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
-        // SEP-2243: a modern tools/call with params.name in the body must carry the Mcp-Name header
+        // SEP-2243: a stateless tools/call with params.name in the body must carry the Mcp-Name header
         final var response = endpoint(jsons, container)
                 .handle(new StubRequest(
                         Map.of(
@@ -471,7 +475,7 @@ class MCPEndpointTest {
     }
 
     @Test
-    void aStrictModernRequestWithNoMetaIsRejected(
+    void aStrictStatelessRequestWithNoMetaIsRejected(
             @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
         // the strict 2026-07-28 transport requires the protocolVersion and clientCapabilities _meta fields
         final var response = endpoint(jsons, container)
@@ -487,7 +491,7 @@ class MCPEndpointTest {
     }
 
     @Test
-    void aStrictModernRequestWithoutClientCapabilitiesIsRejected(
+    void aStrictStatelessRequestWithoutClientCapabilitiesIsRejected(
             @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
         // clientInfo alone is not enough on the strict transport, clientCapabilities is required too
         final var response = endpoint(jsons, container)
@@ -586,6 +590,237 @@ class MCPEndpointTest {
         assertEquals(200, response.status());
     }
 
+    @Test
+    void aStatelessRequestPublishingNotificationsStreamsThemWithTheResult(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // a stateless request whose tool publishes progress answers on a text/event-stream body: the buffered
+        // notifications first, the final result last
+        final var request = streamingRequest(
+                Map.of(MCPProtocol.METHOD_HEADER, "a/notifying", MCPProtocol.PROTOCOL_VERSION_HEADER, "2026-07-28"),
+                """
+                        {"jsonrpc": "2.0", "id": 1, "method": "a/notifying", "params": {"_meta": {
+                          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                          "io.modelcontextprotocol/clientInfo": {"name": "test", "version": "1.0.0"},
+                          "io.modelcontextprotocol/clientCapabilities": {}
+                        }}}""");
+
+        final var response =
+                endpoint(jsons, container).handle(request).toCompletableFuture().join();
+
+        assertEquals(200, response.status());
+        assertEquals(
+                List.of("text/event-stream;charset=utf-8"), response.headers().get("content-type"));
+        final var body = body(response);
+        assertTrue(body.contains("\"notifications/progress\""), body);
+        assertTrue(body.contains("\"ok\""), body);
+    }
+
+    @Test
+    void aStatelessListenAnswerIsAStream(@Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // subscriptions/listen returns the session stream as the response body
+        final var request = streamingRequest(
+                Map.of(
+                        MCPProtocol.METHOD_HEADER,
+                        "subscriptions/listen",
+                        MCPProtocol.PROTOCOL_VERSION_HEADER,
+                        "2026-07-28"),
+                """
+                        {"jsonrpc": "2.0", "id": 3, "method": "subscriptions/listen", "params": {"_meta": {
+                          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                          "io.modelcontextprotocol/clientInfo": {"name": "test", "version": "1.0.0"},
+                          "io.modelcontextprotocol/clientCapabilities": {}
+                        }}}""");
+
+        final var response = endpoint(jsons, container, sessions(jsons))
+                .handle(request)
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(200, response.status());
+        assertEquals(
+                List.of("text/event-stream;charset=utf-8"), response.headers().get("content-type"));
+        body(response); // the stream is readable
+    }
+
+    @Test
+    void aClientResponseIsRoutedAndNotAnswered(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // a JSON-RPC response - no method, an id and a result or an error - is routed to the session the client
+        // answers, the transport acknowledges with a 202 and no body
+        for (final var body : List.of("""
+                {"jsonrpc": "2.0", "id": 7, "result": {"ok": true}}""", """
+                {"jsonrpc": "2.0", "id": 8, "error": {"code": -32000, "message": "boom"}}""")) {
+            final var response = endpoint(jsons, container)
+                    .handle(new StubRequest(Map.of(), body))
+                    .toCompletableFuture()
+                    .join();
+
+            assertEquals(202, response.status());
+            assertEquals("", this.body(response));
+        }
+    }
+
+    @Test
+    void aNonObjectBodyIsHandledAsALegacyCall(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // a scalar body is not a JSON-RPC message, it is passed to the stack which reports a JSON-RPC error
+        final var response = endpoint(jsons, container)
+                .handle(new StubRequest(Map.of(), "\"hello\""))
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(200, response.status());
+    }
+
+    @Test
+    void aStrictBatchStartingWithANonObjectSkipsTheMetaCheck(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // a batch is not a single call: the _meta strictness cannot be evaluated on the first element, it is skipped
+        final var response = endpoint(jsons, container)
+                .handle(new StubRequest(
+                        Map.of(MCPProtocol.METHOD_HEADER, "a/tool", MCPProtocol.PROTOCOL_VERSION_HEADER, "2026-07-28"),
+                        """
+                                [1, {"jsonrpc": "2.0", "id": 1, "method": "a/tool", "params": {"_meta": {
+                                   "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                                   "io.modelcontextprotocol/clientInfo": {"name": "test", "version": "1.0.0"},
+                                   "io.modelcontextprotocol/clientCapabilities": {}
+                                }}}]"""))
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(200, response.status());
+    }
+
+    @Test
+    void aSupportedLegacyVersionHeaderIsNotStrict(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // a supported legacy version in the header is serviced, not treated as a strict stateless request
+        final var response = endpoint(jsons, container)
+                .handle(new StubRequest(Map.of(MCPProtocol.PROTOCOL_VERSION_HEADER, "2025-11-25"), """
+                                {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25"}}"""))
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(200, response.status());
+        assertEquals(1, response.headers().get(SESSION_HEADER).size());
+    }
+
+    @Test
+    void aLegacyMetaVersionWithoutHeadersStaysLegacy(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // a supported legacy version in the body _meta, without any header, does not trigger the strict stateless
+        // checks and the request is serviced on a session
+        final var response = endpoint(jsons, container)
+                .handle(new StubRequest(Map.of(), """
+                                {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+                                  "protocolVersion": "2025-11-25",
+                                  "_meta": {"io.modelcontextprotocol/protocolVersion": "2025-11-25"}
+                                }}"""))
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(200, response.status());
+        assertEquals(1, response.headers().get(SESSION_HEADER).size());
+    }
+
+    @Test
+    void aStatelessMethodHeaderWithoutAProtocolVersion(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // an Mcp-Method header is enough to mark the request stateless, no MCP-Protocol-Version is required
+        final var response = endpoint(jsons, container)
+                .handle(new StubRequest(Map.of(MCPProtocol.METHOD_HEADER, "a/tool"), """
+                                {"jsonrpc": "2.0", "id": 1, "method": "a/tool", "params": {"_meta": {
+                                  "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                                  "io.modelcontextprotocol/clientInfo": {"name": "test", "version": "1.0.0"},
+                                  "io.modelcontextprotocol/clientCapabilities": {}
+                                }}}"""))
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(200, response.status());
+    }
+
+    @Test
+    void aStrictVersionFromTheMetaOnlyIsEnforced(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // a stateless version in the body _meta, without any header, is enough to trigger the strict _meta check
+        final var response = endpoint(jsons, container)
+                .handle(new StubRequest(Map.of(), """
+                                {"jsonrpc": "2.0", "id": 1, "method": "a/tool", "params": {"_meta": {
+                                  "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                                  "io.modelcontextprotocol/clientInfo": {"name": "test", "version": "1.0.0"},
+                                  "io.modelcontextprotocol/clientCapabilities": {}
+                                }}}"""))
+                .toCompletableFuture()
+                .join();
+
+        assertEquals(200, response.status());
+    }
+
+    @Test
+    void statelessRoutableNamesCoverTasksAndUnknownMethods(
+            @Fusion final JsonMapper jsons, @Fusion final RuntimeContainer container) {
+        // tasks/* are routed on their taskId - a matching Mcp-Name is accepted - and a method outside the routable
+        // list needs no Mcp-Name: both are served (here to a 404 since no such JSON-RPC method exists)
+        final var routed = endpoint(jsons, container)
+                .handle(new StubRequest(
+                        Map.of(MCPProtocol.METHOD_HEADER, "tasks/get", MCPProtocol.NAME_HEADER, "t1"), """
+                                {"jsonrpc": "2.0", "id": 1, "method": "tasks/get", "params": {"taskId": "t1"}}"""))
+                .toCompletableFuture()
+                .join();
+        assertEquals(404, routed.status());
+
+        final var unknown = endpoint(jsons, container)
+                .handle(new StubRequest(Map.of(MCPProtocol.METHOD_HEADER, "unknown/x"), """
+                                {"jsonrpc": "2.0", "id": 2, "method": "unknown/x"}"""))
+                .toCompletableFuture()
+                .join();
+        assertEquals(404, unknown.status());
+    }
+
+    /**
+     * A request which can unwrap to a servlet request with an async context, what the streaming responses need.
+     */
+    private StubRequest streamingRequest(final Map<String, String> headers, final String body) {
+        return new StubRequest(headers, body) {
+            @Override
+            public <T> T unwrap(final Class<T> type) {
+                if (type == HttpServletRequest.class) {
+                    return type.cast(servletRequest());
+                }
+                return super.unwrap(type);
+            }
+        };
+    }
+
+    private static HttpServletRequest servletRequest() {
+        final var asyncContext = (AsyncContext) Proxy.newProxyInstance(
+                MCPEndpointTest.class.getClassLoader(),
+                new Class<?>[] {AsyncContext.class},
+                (proxy, method, args) -> method.getReturnType() == void.class ? null : null);
+        return (HttpServletRequest) Proxy.newProxyInstance(
+                MCPEndpointTest.class.getClassLoader(),
+                new Class<?>[] {HttpServletRequest.class},
+                (proxy, method, args) -> {
+                    if ("getAsyncContext".equals(method.getName())) {
+                        return asyncContext;
+                    }
+                    if (method.getReturnType() == void.class) {
+                        return null;
+                    }
+                    if (method.getReturnType().isPrimitive()) {
+                        return method.getReturnType() == boolean.class ? false : 0;
+                    }
+                    if (method.getReturnType() == String.class) {
+                        return "";
+                    }
+                    if (method.getName().equals("toString")) {
+                        return "stub servlet request";
+                    }
+                    return null;
+                });
+    }
+
     /**
      * @return the response payload, it can only be read once: it is a publisher, not a buffer.
      */
@@ -593,7 +828,9 @@ class MCPEndpointTest {
         if (response.body() == null) {
             return "";
         }
-        final var subscriber = SseSubscriber.strict(Long.MAX_VALUE);
+        // a demand of one keeps every write flowing: some bodies - the SSE ones - are multi-framed and would stall
+        // on a single Long.MAX_VALUE demand which overflows on the reentrant request of a WriterPublisher
+        final var subscriber = SseSubscriber.strict(1);
         response.body().subscribe(subscriber);
         return String.join("", subscriber.received());
     }
@@ -611,11 +848,52 @@ class MCPEndpointTest {
                 configuration(false, rejectNonLocalHosts));
     }
 
+    private MCPEndpoint endpoint(final JsonMapper jsons, final RuntimeContainer container, final MCPSessions sessions) {
+        return new MCPEndpoint(new JsonRpcHandler(container, jsons, registry()), jsons, sessions, configuration(false));
+    }
+
     private JsonRpcRegistry registry() {
         return new JsonRpcRegistry(List.of(
                 StubJsonRpcMethod.tool("a/tool", params -> completedFuture(Map.of("ok", true))),
                 StubJsonRpcMethod.tool("tools/call", params -> completedFuture(Map.of("ok", true))),
-                StubJsonRpcMethod.plain("initialize")));
+                StubJsonRpcMethod.plain("initialize"),
+                new JsonRpcMethod() {
+                    @Override
+                    public String name() {
+                        return "a/notifying";
+                    }
+
+                    @Override
+                    public boolean isNotification() {
+                        return false;
+                    }
+
+                    @Override
+                    public CompletionStage<?> invoke(final Context context) {
+                        context.request()
+                                .attribute(MCPSessions.REQUEST_ATTRIBUTE, MCPSession.class)
+                                .notify("notifications/progress", Map.of("progress", 0.5));
+                        return completedFuture(Map.of("ok", true));
+                    }
+                },
+                new JsonRpcMethod() {
+                    @Override
+                    public String name() {
+                        return "subscriptions/listen";
+                    }
+
+                    @Override
+                    public boolean isNotification() {
+                        return false;
+                    }
+
+                    @Override
+                    public CompletionStage<?> invoke(final Context context) {
+                        final var session =
+                                context.request().attribute(MCPSessions.REQUEST_ATTRIBUTE, MCPSession.class);
+                        return completedFuture(new ResponseWithBus(session.sse(), null));
+                    }
+                }));
     }
 
     private MCPSessions sessions(final JsonMapper jsons) {

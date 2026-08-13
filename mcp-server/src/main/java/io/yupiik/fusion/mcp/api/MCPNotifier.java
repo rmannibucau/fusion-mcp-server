@@ -137,7 +137,7 @@ public class MCPNotifier {
     }
 
     /**
-     * Sends any notification to all the connected clients - the registered sessions and the modern subscriptions.
+     * Sends any notification to all the connected clients - the registered sessions and the stateless subscriptions.
      *
      * @param method the notification name.
      * @param params its parameters.

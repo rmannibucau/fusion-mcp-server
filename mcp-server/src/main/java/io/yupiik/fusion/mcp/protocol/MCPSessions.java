@@ -175,7 +175,7 @@ public class MCPSessions {
     }
 
     /**
-     * Registers a modern {@code subscriptions/listen} stream so a later {@code subscriptions/cancel} - or a
+     * Registers a stateless {@code subscriptions/listen} stream so a later {@code subscriptions/cancel} - or a
      * notification - can reach the subscription living in an otherwise unrecoverable ephemeral session.
      * <p>
      * The session stream is armed to unregister itself when it closes, so a client leaving without cancelling leaks
@@ -212,8 +212,8 @@ public class MCPSessions {
     }
 
     /**
-     * @return all the live {@code subscriptions/listen} streams, i.e. the modern clients a notification can be routed
-     * to.
+     * @return all the live {@code subscriptions/listen} streams, i.e. the stateless clients a notification can be
+     * routed to.
      */
     public Collection<Subscription> subscriptions() {
         return subscriptions.values();

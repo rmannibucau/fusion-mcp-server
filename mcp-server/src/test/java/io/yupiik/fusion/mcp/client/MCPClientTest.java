@@ -284,7 +284,7 @@ class MCPClientTest {
     void aStatelessToolCallCarriesTheNameHeader(
             @Fusion final URI mcpEndpoint, @Fusion final HttpClient http, @Fusion final JsonMapper jsonMapper) {
         // a tools/call with a name makes the client emit the Mcp-Name header; an unknown tool is still routed and
-        // answered as a JSON-RPC error (-32602 -> HTTP 400) on the modern transport
+        // answered as a JSON-RPC error (-32602 -> HTTP 400) on the stateless transport
         try (final var client = new MCPClient(mcpEndpoint, http, jsonMapper)) {
             client.discover().toCompletableFuture().join();
 
